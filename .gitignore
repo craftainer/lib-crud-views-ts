@@ -115,3 +115,8 @@ node_modules
 *.tsbuildinfo
 coverage/
 *.tgz
+
+# Storybook build and Playwright output
+storybook-static/
+playwright-report/
+test-results/

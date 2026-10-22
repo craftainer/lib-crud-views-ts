@@ -1,11 +1,3 @@
-// Example entry point `.`: replace with the real public API (see docs/TEMPLATE.md).
-import { add } from "./core.ts";
-
-/** Return the sum of `values` (0 when empty). */
-export function total(values: Iterable<number>): number {
-  let result = 0;
-  for (const value of values) {
-    result = add(result, value);
-  }
-  return result;
-}
+// Entry point `.`. Each view area (list, form, detail, stats) appends one
+// `export * from "./<area>/index.ts";` line below when it lands.
+export * from "./core/index.ts";

@@ -1,15 +1,15 @@
 {
-  "name": "template-npm-package",
+  "name": "@craftainer/crud-views",
   "version": "0.0.0",
-  "description": "Example ESM TypeScript package: replace with the real description.",
+  "description": "Manifest-driven CRUD views for React on MUI: provider, resource hook, field-renderer registry and layout shells (list, form, detail, stats views build on them).",
   "license": "GPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/craftainer/template-npm-package.git"
+    "url": "git+https://github.com/craftainer/lib-crud-views-ts.git"
   },
-  "homepage": "https://github.com/craftainer/template-npm-package#readme",
+  "homepage": "https://github.com/craftainer/lib-crud-views-ts#readme",
   "bugs": {
-    "url": "https://github.com/craftainer/template-npm-package/issues"
+    "url": "https://github.com/craftainer/lib-crud-views-ts/issues"
   },
   "type": "module",
   "sideEffects": false,
@@ -27,10 +27,6 @@
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     },
-    "./extra": {
-      "types": "./dist/extra.d.mts",
-      "default": "./dist/extra.mjs"
-    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -42,17 +38,52 @@
     "test": "vitest run --coverage",
     "publint": "publint --strict",
     "attw": "attw --pack . --profile esm-only",
-    "lockfile": "pnpm install --frozen-lockfile --lockfile-only"
+    "lockfile": "pnpm install --frozen-lockfile --lockfile-only",
+    "storybook": "storybook dev --port 6006 --no-open",
+    "storybook:build": "storybook build"
+  },
+  "peerDependencies": {
+    "@craftainer/crud-sdk": "^0.1.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/material": "^9.4.0",
+    "@mui/x-charts": "^9.16.0",
+    "@mui/x-data-grid": "^9.16.0",
+    "@tanstack/react-query": "^5.104.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
+    "@axe-core/playwright": "4.14.0",
+    "@craftainer/crud-sdk": "0.1.0",
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1",
+    "@mui/material": "9.5.0",
+    "@mui/x-charts": "9.16.0",
+    "@mui/x-data-grid": "9.16.0",
+    "@playwright/test": "1.64.1",
+    "@storybook/addon-a11y": "10.6.3",
+    "@storybook/react-vite": "10.6.3",
+    "@tanstack/react-query": "5.104.5",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
     "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
     "@vitest/coverage-v8": "5.0.5",
+    "jsdom": "30.1.3",
     "oxlint": "1.89.0",
     "prettier": "3.9.10",
     "publint": "0.3.25",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "storybook": "10.6.3",
     "tsdown": "0.23.1",
     "typescript": "6.0.3",
+    "vite": "8.3.5",
     "vitest": "5.0.5"
   }
 }

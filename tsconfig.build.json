@@ -1,11 +1,13 @@
 {
   // What tsdown compiles (see tsdown.config.ts): only the published sources,
   // with isolatedDeclarations so declaration files are generated fast and
-  // every public export needs an explicit type annotation.
+  // every public export needs an explicit type annotation. Stories and tests
+  // are not part of the package.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "declaration": true,
     "isolatedDeclarations": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/**/*.stories.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"]
 }

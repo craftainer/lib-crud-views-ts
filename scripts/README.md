@@ -28,6 +28,11 @@
   Corepack when Node lacks one) and
   `post-create.d/10-pnpm-install.sh` (installs dependencies); a package adds
   its own scripts after them.
+- `check-design-tokens.sh` — the design-token lint (ADR 0002): rejects hex/rgb/hsl
+  color literals and raw `px` values in `src/**/*.{ts,tsx,css}` (stories included, tests
+  skipped), so every color and size comes from the consumer's MUI theme. A line opts out
+  with `design-tokens: allow <reason>`. `--self-test` runs it against fixtures. Run by the
+  `design-tokens` hook.
 
 ## Do
 
