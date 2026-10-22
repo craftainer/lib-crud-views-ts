@@ -93,7 +93,7 @@ function readNode(raw: unknown, root: JsonObject): Node {
 }
 
 function schemaKind(node: Node): FieldKind {
-  if (node.choices !== undefined) return "enum";
+  if (node.choices !== undefined && node.choices.length > 0) return "enum";
   switch (node.type) {
     case "string":
       return node.format === "date"
@@ -114,11 +114,12 @@ function schemaKind(node: Node): FieldKind {
 
 function properties(schema: JsonObject): JsonObject {
   const props = schema["properties"];
-  // A null-prototype copy: names like "constructor" must not resolve to inherited members.
-  return Object.assign(
-    Object.create(null) as JsonObject,
-    isObject(props) ? props : {},
-  );
+  return isObject(props) ? props : {};
+}
+
+/** An own property of `props` (names like "constructor" are not inherited members). */
+function own(props: JsonObject, name: string): unknown {
+  return Object.hasOwn(props, name) ? props[name] : undefined;
 }
 
 function requiredSet(schema: JsonObject): ReadonlySet<string> {
@@ -137,29 +138,33 @@ function describe(
   create: JsonObject,
   update: JsonObject,
 ): FieldDescriptor {
-  const node = readNode(
-    properties(read)[name] ??
-      properties(create)[name] ??
-      properties(update)[name],
-    read,
-  );
+  const [pRead, pCreate, pUpdate] = [read, create, update].map(properties) as [
+    JsonObject,
+    JsonObject,
+    JsonObject,
+  ];
+  // `$ref`s resolve against the schema the property came from.
+  const [raw, root] =
+    own(pRead, name) !== undefined
+      ? [own(pRead, name), read]
+      : own(pCreate, name) !== undefined
+        ? [own(pCreate, name), create]
+        : [own(pUpdate, name), update];
+  const node = readNode(raw, root);
   const kind: FieldKind =
     spec === undefined
       ? schemaKind(node)
       : KINDS.includes(spec.value_type)
         ? (spec.value_type as FieldKind)
         : "string";
-  const itemNode = readNode(node.items, read);
+  const itemNode = readNode(node.items, root);
   return {
     name,
     label: humanize(name),
     kind,
     format: node.format ?? null,
     nullable: node.nullable,
-    readOnly: !(
-      Object.hasOwn(properties(create), name) ||
-      Object.hasOwn(properties(update), name)
-    ),
+    readOnly: !(Object.hasOwn(pCreate, name) || Object.hasOwn(pUpdate, name)),
     required:
       spec === undefined ? requiredSet(create).has(name) : spec.required,
     choices: spec?.choices ?? node.choices ?? null,

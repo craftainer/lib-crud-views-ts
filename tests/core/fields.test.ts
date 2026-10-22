@@ -95,6 +95,30 @@ const synthetic = (
   }) as unknown as Resource;
 
 describe("describeFields on odd schemas", () => {
+  it("resolves a write-only property's $ref against its own schema", () => {
+    const r = synthetic(
+      {},
+      {
+        fields: [
+          { name: "status", value_type: "enum", required: false },
+        ] as unknown as Resource["fields"],
+      },
+      { status: { $ref: "#/$defs/S" } },
+    );
+    (r.schemas.create as Record<string, unknown>)["$defs"] = {
+      S: { enum: ["on", "off"] },
+    };
+    expect(byName(r).get("status")).toMatchObject({
+      kind: "enum",
+      choices: ["on", "off"],
+    });
+  });
+
+  it("does not call a numeric enum an enum of strings", () => {
+    const f = byName(synthetic({ n: { type: "integer", enum: [1, 2] } }));
+    expect(f.get("n")).toMatchObject({ kind: "integer" });
+  });
+
   it("does not treat inherited object members as schema properties", () => {
     const f = byName(
       synthetic({ constructor: { type: "string" } }, {}, { name: {} }),
