@@ -26,6 +26,10 @@
   `dist/` as `release-assets-<arch>`; then one job downloads them all,
   runs `make release-check` inside the devcontainer and `make finalize`
   on the host, and creates a GitHub release with everything in `dist/`.
+- `visual.yml` — `lib-crud-views-ts` only: builds Storybook and runs the
+  Playwright screenshot and axe suite (`tests/visual/`) inside the pinned
+  Playwright image on the `arm64` runner, uploading the HTML report on
+  failure (see `docs/adrs/0002-core-design-and-field-renderers.md`).
 - `moderate-bug-triage.yml` / `moderate-bug-fix.yml` /
   `moderate-bug-fix-apply.yml` / `moderate-feature-triage.yml` /
   `moderate-feature-build.yml` / `moderate-feature-build-apply.yml` /

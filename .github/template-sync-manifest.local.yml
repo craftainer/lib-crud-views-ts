@@ -1,0 +1,13 @@
+# This package's own paths, beyond template-npm-package's manifest: read by the
+# template-sync-manifest completeness check, never by sync. "ignore" tier only.
+ignore:
+  # The package's pnpm settings (build-script allowlist).
+  - pnpm-workspace.yaml
+  # Storybook and the visual-regression suite, copied from template-react
+  # (ADR 0002). The baselines are this package's own renders.
+  - .storybook/
+  - .github/workflows/visual.yml
+  # The design-token lint, adapted from template-react (ADR 0002).
+  - scripts/check-design-tokens.sh
+  # Contract documents (I4) frozen for the view areas.
+  - docs/contracts/
