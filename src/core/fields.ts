@@ -114,7 +114,11 @@ function schemaKind(node: Node): FieldKind {
 
 function properties(schema: JsonObject): JsonObject {
   const props = schema["properties"];
-  return isObject(props) ? props : {};
+  // A null-prototype copy: names like "constructor" must not resolve to inherited members.
+  return Object.assign(
+    Object.create(null) as JsonObject,
+    isObject(props) ? props : {},
+  );
 }
 
 function requiredSet(schema: JsonObject): ReadonlySet<string> {
@@ -152,7 +156,10 @@ function describe(
     kind,
     format: node.format ?? null,
     nullable: node.nullable,
-    readOnly: !(name in properties(create) || name in properties(update)),
+    readOnly: !(
+      Object.hasOwn(properties(create), name) ||
+      Object.hasOwn(properties(update), name)
+    ),
     required:
       spec === undefined ? requiredSet(create).has(name) : spec.required,
     choices: spec?.choices ?? node.choices ?? null,

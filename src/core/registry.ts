@@ -56,6 +56,7 @@ interface Registration {
 
 let registrations: readonly Registration[] = [];
 let snapshot: RendererOverrides = {};
+const listeners = new Set<() => void>();
 
 function rebuild(): void {
   const next: Record<string, FieldRenderers> = {};
@@ -63,6 +64,15 @@ function rebuild(): void {
     next[selector] = { ...next[selector], ...renderers };
   }
   snapshot = next;
+  for (const listener of listeners) listener();
+}
+
+/** Subscribes to registration changes (for `useSyncExternalStore`); returns the unsubscribe function. */
+export function subscribeRegisteredRenderers(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 /**

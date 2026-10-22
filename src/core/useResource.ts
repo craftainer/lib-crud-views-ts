@@ -168,7 +168,7 @@ export function useResource<
   });
   const ready = handle.data;
   return useMemo<UseResourceResult<Read, Create, Update>>(() => {
-    if (manifest.error !== null)
+    if (manifest.error !== null && manifest.data === undefined)
       return { status: "error", error: manifest.error };
     if (manifest.data !== undefined && resource === undefined) {
       return {
@@ -178,7 +178,8 @@ export function useResource<
         ),
       };
     }
-    if (handle.error !== null) return { status: "error", error: handle.error };
+    if (handle.error !== null && ready === undefined)
+      return { status: "error", error: handle.error };
     if (resource === undefined || ready === undefined)
       return { status: "pending", error: null };
     const fields = describeFields(resource);

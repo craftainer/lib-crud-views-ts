@@ -1,4 +1,6 @@
+import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
@@ -86,19 +88,26 @@ export function NumberInput(props: InputRendererProps): ReactElement {
 
 export function BooleanInput(props: InputRendererProps): ReactElement {
   const { field, value, onChange, disabled, onBlur, size } = props;
+  const help = props.error ?? props.helperText;
   return (
-    <FormControlLabel
-      label={field.label}
-      disabled={disabled === true}
-      control={
-        <Switch
-          size={size ?? "small"}
-          checked={value === true}
-          onBlur={onBlur}
-          onChange={(e) => onChange(e.target.checked)}
-        />
-      }
-    />
+    <FormControl error={props.error !== undefined} disabled={disabled === true}>
+      <FormControlLabel
+        label={field.label}
+        required={field.required}
+        sx={{ ml: 0 }}
+        control={
+          <Switch
+            id={props.id}
+            size={size ?? "small"}
+            checked={value === true}
+            autoFocus={props.autoFocus === true}
+            onBlur={onBlur}
+            onChange={(e) => onChange(e.target.checked)}
+          />
+        }
+      />
+      {help === undefined ? null : <FormHelperText>{help}</FormHelperText>}
+    </FormControl>
   );
 }
 
@@ -212,22 +221,41 @@ export function ArrayInput(props: InputRendererProps): ReactElement {
         .map((s) => s.trim())
         .filter((s) => s !== "");
       if (items.length === 0) return { ok: true, value: emptyValue(field) };
-      return { ok: true, value: numeric ? items.map(Number) : items };
+      if (!numeric) return { ok: true, value: items };
+      const numbers = items.map(Number);
+      return numbers.some(Number.isNaN)
+        ? { ok: false }
+        : { ok: true, value: numbers };
     },
   );
+  const invalid =
+    numeric &&
+    draft.split(",").some((s) => s.trim() !== "" && Number.isNaN(Number(s)));
   return (
     <TextField
       {...common(props)}
       value={draft}
+      error={invalid || props.error !== undefined}
       helperText={
-        props.error ?? props.helperText ?? "Separate items with commas"
+        invalid
+          ? "Items must be numbers"
+          : (props.error ?? props.helperText ?? "Separate items with commas")
       }
       onChange={(e) => {
-        // Splitting on commas always yields a value.
-        onChange(edit(e.target.value) as FieldValue);
+        const next = edit(e.target.value);
+        if (next !== INVALID) onChange(next);
       }}
     />
   );
+}
+
+function isJson(raw: string): boolean {
+  try {
+    JSON.parse(raw);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function JsonInput(props: InputRendererProps): ReactElement {
@@ -244,7 +272,8 @@ export function JsonInput(props: InputRendererProps): ReactElement {
       }
     },
   );
-  const [invalid, setInvalid] = useState(false);
+  // Derived from the text, so it follows resets of the draft.
+  const invalid = draft.trim() !== "" && !isJson(draft);
   return (
     <TextField
       {...common(props)}
@@ -258,7 +287,6 @@ export function JsonInput(props: InputRendererProps): ReactElement {
       slotProps={{ htmlInput: { style: { fontFamily: "monospace" } } }}
       onChange={(e) => {
         const next = edit(e.target.value);
-        setInvalid(next === INVALID);
         if (next !== INVALID) onChange(next);
       }}
     />

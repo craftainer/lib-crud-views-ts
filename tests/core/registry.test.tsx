@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   FieldDisplay,
@@ -87,6 +87,24 @@ describe("registerFieldRenderer", () => {
     expect(screen.getByText("mark:true")).toBeInTheDocument();
     undo.pop()?.();
     expect(getRegisteredRenderers()).toEqual({});
+  });
+
+  it("re-renders mounted fields when a renderer is registered or removed", () => {
+    render(
+      <FieldDisplay
+        field={field({ kind: "boolean" })}
+        resource="r"
+        value={true}
+      />,
+    );
+    expect(screen.queryByText("mark:true")).toBeNull();
+    let remove = (): void => undefined;
+    act(() => {
+      remove = registerFieldRenderer("boolean", { display: Mark });
+    });
+    expect(screen.getByText("mark:true")).toBeInTheDocument();
+    act(() => remove());
+    expect(screen.queryByText("mark:true")).toBeNull();
   });
 
   it("merges registrations per selector, and undo restores the previous one", () => {

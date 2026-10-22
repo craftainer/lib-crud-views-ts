@@ -95,6 +95,16 @@ const synthetic = (
   }) as unknown as Resource;
 
 describe("describeFields on odd schemas", () => {
+  it("does not treat inherited object members as schema properties", () => {
+    const f = byName(
+      synthetic({ constructor: { type: "string" } }, {}, { name: {} }),
+    );
+    expect(f.get("constructor")).toMatchObject({
+      readOnly: true,
+      kind: "string",
+    });
+  });
+
   it("infers kinds from schema types and formats", () => {
     const f = byName(
       synthetic({

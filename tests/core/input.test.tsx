@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -226,6 +226,43 @@ describe("input renderers", () => {
     expect(a.emitted.at(-1)).toEqual([1]);
     setup({ kind: "json", label: "Err" }, 5, { error: "bad" });
     expect(screen.getByText("bad")).toBeInTheDocument();
+  });
+
+  it("flags non-numeric items and does not emit NaN", async () => {
+    const n = setup({ kind: "array", itemKind: "integer", label: "Nums" });
+    await n.user.type(screen.getByLabelText("Nums"), "1,abc");
+    expect(screen.getByText("Items must be numbers")).toBeInTheDocument();
+    expect(n.emitted.at(-1)).toEqual([1]);
+    expect(
+      n.emitted.some((v) => Array.isArray(v) && v.some(Number.isNaN)),
+    ).toBe(false);
+  });
+
+  it("shows the error and helper text of a boolean field", () => {
+    setup({ kind: "boolean", label: "Ok", required: true }, false, {
+      error: "must be accepted",
+    });
+    expect(screen.getByText("must be accepted")).toBeInTheDocument();
+    setup({ kind: "boolean", label: "Ok2" }, false, { helperText: "hint" });
+    expect(screen.getByText("hint")).toBeInTheDocument();
+  });
+
+  it("clears the invalid-JSON flag when the value changes from outside", () => {
+    const emitted: FieldValue[] = [];
+    const f = field({ kind: "json", label: "J" });
+    const view = (value: FieldValue) => (
+      <FieldInput
+        field={f}
+        resource="r"
+        value={value}
+        onChange={(v) => emitted.push(v)}
+      />
+    );
+    const { rerender } = render(view({ a: 1 }));
+    fireEvent.change(screen.getByLabelText("J"), { target: { value: "{" } });
+    expect(screen.getByText("Not valid JSON")).toBeInTheDocument();
+    rerender(view({ a: 2 }));
+    expect(screen.queryByText("Not valid JSON")).toBeNull();
   });
 
   it("starts a JSON field from null", () => {

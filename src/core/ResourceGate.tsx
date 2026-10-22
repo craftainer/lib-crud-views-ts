@@ -37,8 +37,10 @@ export function ResourceGate({
   if (state.status === "error") {
     return (
       <>
-        {fallback?.(state.error) ?? (
+        {fallback === undefined ? (
           <Alert severity="error">{state.error.message}</Alert>
+        ) : (
+          fallback(state.error)
         )}
       </>
     );

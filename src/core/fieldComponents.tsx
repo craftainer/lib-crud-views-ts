@@ -1,10 +1,16 @@
 // <FieldDisplay>, <FieldInput> and <FieldFilterInput>: what the views render.
 // Each resolves its renderer through the layers (docs/contracts/I4-field-renderers.md).
-import { createElement, useContext, type ReactElement } from "react";
+import {
+  createElement,
+  useContext,
+  useSyncExternalStore,
+  type ReactElement,
+} from "react";
 import { CrudContextRaw } from "./context.ts";
 import {
   getRegisteredRenderers,
   resolveRenderer,
+  subscribeRegisteredRenderers,
   type RendererByRole,
 } from "./registry.ts";
 import { builtinRenderers } from "./renderers/builtins.ts";
@@ -27,7 +33,12 @@ function useRendererLayers(
   own: RendererOverrides | undefined,
 ): readonly (RendererOverrides | undefined)[] {
   const crud = useContext(CrudContextRaw);
-  return [own, crud?.renderers, getRegisteredRenderers(), builtinRenderers];
+  const registered = useSyncExternalStore(
+    subscribeRegisteredRenderers,
+    getRegisteredRenderers,
+    getRegisteredRenderers,
+  );
+  return [own, crud?.renderers, registered, builtinRenderers];
 }
 
 function pick<R extends RendererRole>(

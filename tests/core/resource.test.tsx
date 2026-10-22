@@ -263,6 +263,16 @@ describe("ResourceGate", () => {
     expect(await screen.findByText(/custom:/)).toBeInTheDocument();
   });
 
+  it("renders nothing when the fallback returns null", async () => {
+    renderCrud(
+      <ResourceGate name="ghost" fallback={() => null}>
+        {() => null}
+      </ResourceGate>,
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("falls back to an error alert", async () => {
     renderCrud(<ResourceGate name="ghost">{() => null}</ResourceGate>);
     expect(await screen.findByRole("alert")).toHaveTextContent(
