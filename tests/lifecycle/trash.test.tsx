@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TrashList, TrashPanel } from "../../src/lifecycle/index.ts";
 import { lifecycleHeroes } from "../fixtures/routes/detail.ts";
+import { manyHeroes } from "../fixtures/routes/list.ts";
 import { renderCrud } from "../helpers.tsx";
 import { Ready } from "../ready.tsx";
-import { failedQuery, pendingQuery, withHooks } from "../hooks.ts";
 
 const fresh = lifecycleHeroes;
 
@@ -18,8 +18,8 @@ describe("TrashList", () => {
     );
     expect(await screen.findByText("Old Stamp")).toBeInTheDocument();
     expect(screen.queryByText("The Margin")).toBeNull();
-    expect(stub.requests).toContain(
-      "GET /api/crud/v1/heroes/v2/json?include_archived=true",
+    expect(stub.requests.some((r) => r.includes("include_archived=true"))).toBe(
+      true,
     );
     await userEvent.click(
       screen.getByRole("button", { name: "Restore record 3" }),
@@ -42,24 +42,14 @@ describe("TrashList", () => {
   });
 
   it("shows the restore error", async () => {
-    renderCrud(
-      <Ready>
-        {(ready) => (
-          <TrashPanel
-            ready={withHooks(ready, {
-              useList: () => ({
-                isPending: false,
-                error: null,
-                data: [{ id: 99, name: "Ghost", archived_at: "2026-01-01" }],
-              }),
-            })}
-          />
-        )}
-      </Ready>,
-    );
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Restore record 99" }),
-    );
+    const view = renderCrud(<TrashList resource="heroes" />, {
+      heroes: fresh(),
+    });
+    const button = await screen.findByRole("button", {
+      name: "Restore record 3",
+    });
+    view.stub.tables.get("/api/crud/v1/heroes/v2/json")?.splice(2, 1);
+    await userEvent.click(button);
     expect(await screen.findByRole("alert")).toHaveTextContent("Not found");
   });
 
@@ -71,26 +61,26 @@ describe("TrashList", () => {
     expect(screen.queryByText("Old Stamp")).toBeNull();
   });
 
-  it("shows loading and error states and hides itself without an archive", async () => {
-    const view = renderCrud(
-      <Ready>
-        {(ready) => (
-          <TrashPanel ready={withHooks(ready, { useList: pendingQuery })} />
-        )}
-      </Ready>,
-    );
+  it("shows loading and error states", async () => {
+    const view = renderCrud(<TrashList resource="heroes" />, {
+      list: "pending",
+    });
     expect(await screen.findByLabelText("Loading")).toBeInTheDocument();
     view.unmount();
-    renderCrud(
-      <Ready>
-        {(ready) => (
-          <TrashPanel
-            ready={withHooks(ready, { useList: failedQuery("list failed") })}
-          />
-        )}
-      </Ready>,
+    renderCrud(<TrashList resource="heroes" />, { list: "error" });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/boom/);
+  });
+
+  it("finds archived records on every page", async () => {
+    const heroes = manyHeroes(120).map((row, i) =>
+      i >= 110
+        ? { ...row, is_draft: false, archived_at: "2026-02-01T12:00:00Z" }
+        : row,
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent("list failed");
+    renderCrud(<TrashList resource="heroes" />, { heroes });
+    expect(
+      await screen.findAllByRole("button", { name: /^Restore/ }),
+    ).toHaveLength(10);
   });
 
   it("renders nothing for a resource without an archive", async () => {

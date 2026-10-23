@@ -109,6 +109,24 @@ function parseScalar(
   }
 }
 
+/** Splits on commas that are not escaped as `\,`; `\\` is a backslash. */
+function splitList(text: string): string[] {
+  const parts: string[] = [""];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charAt(i);
+    const next = text.charAt(i + 1);
+    if (ch === "\\" && (next === "," || next === "\\")) {
+      parts[parts.length - 1] += next;
+      i++;
+    } else if (ch === ",") parts.push("");
+    else parts[parts.length - 1] += ch;
+  }
+  return parts;
+}
+
+const escapeItem = (text: string): string =>
+  text.replaceAll("\\", "\\\\").replaceAll(",", "\\,");
+
 /** Reads typed text as the operand of `op` on `field` (`in` takes a comma-separated list); `undefined` when it does not parse. */
 export function parseOperand(
   field: FieldDescriptor,
@@ -116,8 +134,7 @@ export function parseOperand(
   text: string,
 ): FilterScalar | readonly FilterScalar[] | undefined {
   if (op !== "in") return parseScalar(field, text);
-  const items = text
-    .split(",")
+  const items = splitList(text)
     .map((part) => parseScalar(field, part.trim()))
     .filter((v): v is FilterScalar => v !== undefined);
   return items.length === 0 ? undefined : items;
@@ -128,7 +145,9 @@ export function formatOperand(
   operand: FilterScalar | readonly FilterScalar[],
 ): string {
   if (Array.isArray(operand))
-    return (operand as readonly FilterScalar[]).map(formatOperand).join(",");
+    return (operand as readonly FilterScalar[])
+      .map((item) => escapeItem(formatOperand(item)))
+      .join(",");
   return operand instanceof Date ? operand.toISOString() : String(operand);
 }
 

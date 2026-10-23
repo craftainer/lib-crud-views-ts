@@ -14,8 +14,11 @@ function limitMessage(max: number): string {
 
 /**
  * A message for a failed bulk call. The server answers `400` when a filter
- * matches more than `bulk.max_matched` records.
+ * matches more than `bulk.max_matched` records (or the request is bad for
+ * another reason, which its own message then says).
  */
 export function describeBulkError(error: Error, max: number): string {
-  return error instanceof BadRequest ? limitMessage(max) : error.message;
+  return error instanceof BadRequest
+    ? `${error.message}. A bulk call touches at most ${max} records: narrow the filter or select fewer records.`
+    : error.message;
 }

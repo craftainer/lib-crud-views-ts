@@ -3,7 +3,10 @@ import type { FieldDescriptor } from "../core/index.ts";
 
 function cell(value: unknown): string {
   if (value === null || value === undefined) return "";
-  const text = typeof value === "string" ? value : JSON.stringify(value);
+  const raw = typeof value === "string" ? value : JSON.stringify(value);
+  // A leading = + - @ (or tab/CR) makes a spreadsheet read the cell as a formula.
+  const text =
+    typeof value === "string" && /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
@@ -30,5 +33,6 @@ export function downloadText(
   link.href = url;
   link.download = filename;
   link.click();
-  URL.revokeObjectURL(url);
+  // Revoking at once can cancel the download in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }

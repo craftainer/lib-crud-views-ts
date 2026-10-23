@@ -158,6 +158,17 @@ describe("create", () => {
 });
 
 describe("edit", () => {
+  it("loads the other record when the id changes", async () => {
+    const heroes = fresh();
+    const view = renderCrud(<ResourceForm name="heroes" id={1} />, { heroes });
+    expect(
+      await screen.findByDisplayValue("Captain Ledger"),
+    ).toBeInTheDocument();
+    view.rerender(<ResourceForm name="heroes" id={2} />);
+    expect(await screen.findByDisplayValue("The Margin")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Captain Ledger")).toBeNull();
+  });
+
   const etag = (heroes: JsonObject[]) => (id: number) =>
     etagOf(heroes.find((h) => h["id"] === id) as JsonObject);
 

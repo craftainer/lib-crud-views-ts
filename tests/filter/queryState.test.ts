@@ -48,6 +48,13 @@ describe("operands", () => {
     expect(parseOperand(byName("power_level"), "in", "x")).toBeUndefined();
   });
 
+  it("keeps commas and backslashes inside list items through a round trip", () => {
+    const items = ["Smith, John", "Doe", "a\\b"];
+    const text = formatOperand(items);
+    expect(text).toBe("Smith\\, John,Doe,a\\\\b");
+    expect(parseOperand(byName("name"), "in", text)).toEqual(items);
+  });
+
   it("reads datetimes as UTC, zone-less or not", () => {
     const f = byName("created_at");
     expect(parseOperand(f, "min", "2026-01-02T03:04")).toEqual(

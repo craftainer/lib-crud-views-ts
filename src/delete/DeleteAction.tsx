@@ -231,9 +231,6 @@ function DeleteController({
         open={toast !== null}
         message={toast?.text}
         autoHideDuration={null}
-        onClose={(_event, reason) => {
-          if (reason !== "clickaway") setToast(null);
-        }}
         action={
           <Button color="inherit" size="small" onClick={toast?.undo}>
             Undo

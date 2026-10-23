@@ -40,8 +40,10 @@ describe("useBulkSelection", () => {
     act(() => result.current.selectAllMatching());
     expect(result.current.allMatching).toBe(true);
     expect(result.current.selected).toEqual([]);
-    act(() => result.current.toggle(7));
+    act(() => result.current.toggle(7, [5, 6, 7]));
     expect(result.current.allMatching).toBe(false);
+    expect(result.current.selected).toEqual([5, 6]);
+    act(() => result.current.selectAllMatching());
     act(() => result.current.selectAllMatching());
     act(() => result.current.clear());
     expect(result.current).toMatchObject({ allMatching: false, selected: [] });
@@ -65,6 +67,13 @@ describe("export helpers", () => {
     );
   });
 
+  it("defuses cells a spreadsheet would read as formulas", () => {
+    const fields = [field({ name: "a" })];
+    expect(toCsv(fields, [{ a: "=SUM(A1)" }, { a: "-5" }, { a: -5 }])).toBe(
+      "a\r\n'=SUM(A1)\r\n'-5\r\n-5\r\n",
+    );
+  });
+
   it("downloads text through an object URL", () => {
     const create = vi.fn(() => "blob:x");
     const revoke = vi.fn();
@@ -75,11 +84,15 @@ describe("export helpers", () => {
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => {});
+    vi.useFakeTimers();
     downloadText("x.csv", "a,b");
     downloadText("y.csv", "c", "text/plain");
     expect(create).toHaveBeenCalledTimes(2);
     expect(click).toHaveBeenCalledTimes(2);
+    expect(revoke).not.toHaveBeenCalled();
+    vi.runAllTimers();
     expect(revoke).toHaveBeenCalledWith("blob:x");
+    vi.useRealTimers();
   });
 });
 
@@ -87,7 +100,7 @@ describe("describeBulkError", () => {
   it("explains the limit for a 400 and passes other errors through", () => {
     const bad = new BadRequest({ status: 400, title: "Bad Request" });
     expect(describeBulkError(bad, 1000)).toBe(
-      "More than 1000 records match. Narrow the filter or select fewer records.",
+      "400 Bad Request. A bulk call touches at most 1000 records: narrow the filter or select fewer records.",
     );
     expect(describeBulkError(new Error("down"), 1000)).toBe("down");
     expect(new BulkLimitError(5).message).toMatch(/More than 5/);
@@ -235,7 +248,7 @@ describe("BulkRecords", () => {
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     await userEvent.click(within_dialog_button("Delete"));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "More than 1000 records match. Narrow the filter or select fewer records.",
+      /A bulk call touches at most 1000 records/,
     );
     expect(stub.requests.filter((r) => r.startsWith("DELETE"))).toHaveLength(1);
     expect(screen.getByText(/All records matching/)).toBeInTheDocument();
@@ -353,6 +366,43 @@ describe("BulkRecords", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Publish" }));
     expect(await screen.findByText("Published 2 records.")).toBeInTheDocument();
+  });
+
+  it("refreshes after a publish that fails part way", async () => {
+    const heroes = fresh().map((row) => ({ ...row, is_draft: true }));
+    const view = renderCrud(
+      <Ready>
+        {(ready) => {
+          const handle = new Proxy(ready.handle, {
+            get: (target, key) => {
+              if (key === "publish") {
+                return (id: number) =>
+                  id === 2
+                    ? Promise.reject(new Error("publish failed"))
+                    : target.publish(id);
+              }
+              const value = Reflect.get(target, key, target) as unknown;
+              return typeof value === "function" ? value.bind(target) : value;
+            },
+          });
+          return <BulkPanel ready={{ ...ready, handle }} />;
+        }}
+      </Ready>,
+      { heroes, listDrafts: true },
+    );
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: "Select all on this page" }),
+    );
+    const lists = (): number =>
+      view.stub.requests.filter(
+        (r) => r.startsWith("GET ") && r.includes("limit=25"),
+      ).length;
+    const before = lists();
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "publish failed",
+    );
+    await waitFor(() => expect(lists()).toBeGreaterThan(before));
   });
 
   it("offers only the actions asked for and only those the manifest allows", async () => {

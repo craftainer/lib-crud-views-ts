@@ -130,18 +130,17 @@ describe("DeleteAction", () => {
     ).toBeEnabled();
   });
 
-  it("keeps the waiting toast on a click elsewhere and closes it on Escape", async () => {
-    const view = setup({ variant: "undo", undoMs: 600_000 });
+  it("keeps the waiting toast through Escape, so the deletion stays undoable", async () => {
+    const onUndone = vi.fn();
+    const view = setup({ variant: "undo", undoMs: 600_000, onUndone });
     await view.user.click(
       await screen.findByRole("button", { name: "Delete record 1" }),
     );
     await screen.findByText("Deleting record 1…");
-    await view.user.click(document.body);
-    expect(screen.getByText("Deleting record 1…")).toBeInTheDocument();
     await view.user.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(screen.queryByText("Deleting record 1…")).toBeNull(),
-    );
+    await view.user.click(document.body);
+    await view.user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(onUndone).toHaveBeenCalledWith(1);
   });
 
   it("commits a waiting undo deletion when the button goes away", async () => {

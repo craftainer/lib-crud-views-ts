@@ -1,3 +1,5 @@
+import type { JsonObject } from "@craftainer/crud-sdk";
+import { useQuery } from "@tanstack/react-query";
 import type { FieldValue } from "../core/index.ts";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -41,7 +43,18 @@ function TrashBody({
   columns,
   onRestored,
 }: TrashPanelProps): ReactElement {
-  const list = ready.hooks.useList({ includeArchived: true });
+  // `archived_at` is no filter field, so the archived rows are picked out of
+  // every page: with `includeArchived` alone they share pages with live rows.
+  const list = useQuery({
+    queryKey: ["crud", ready.resource.name, "trash"],
+    queryFn: async (): Promise<JsonObject[]> => {
+      const rows: JsonObject[] = [];
+      for await (const row of ready.handle.iterAll({ includeArchived: true })) {
+        if (typeof row["archived_at"] === "string") rows.push(row);
+      }
+      return rows;
+    },
+  });
   const restore = useRestore(ready);
   const fields =
     columns === undefined
@@ -54,12 +67,10 @@ function TrashBody({
       </Box>
     );
   }
-  if (list.error !== null) {
+  if (list.isError) {
     return <Alert severity="error">{list.error.message}</Alert>;
   }
-  const archived = list.data.filter(
-    (row) => typeof row["archived_at"] === "string",
-  );
+  const archived = list.data;
   const error = restore.error;
   return (
     <>

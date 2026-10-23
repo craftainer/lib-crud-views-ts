@@ -98,6 +98,8 @@ export function BulkToolbar({
       setNotice(done(touched));
       onDone?.({ action, count: touched });
     } catch (caught) {
+      // A partly done change (publish goes one record at a time) still moved the server.
+      if (changes) void invalidate();
       setError(describeBulkError(caught as Error, max));
     } finally {
       setBusy(false);

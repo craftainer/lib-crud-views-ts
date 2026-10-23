@@ -116,6 +116,10 @@ export function NumberInput(props: InputRendererProps): ReactElement {
   const { minimum, maximum } = field.constraints;
   // The browser hands over "" for text that is not a number; remember that.
   const [unparsable, setUnparsable] = useState(false);
+  // A number set from outside (reset, reload) replaces whatever was typed.
+  useEffect(() => {
+    if (typeof value === "number") setUnparsable(false);
+  }, [value]);
   const problem = unparsable ? "Enter a number" : numberProblem(field, value);
   useReportInvalid(problem, props.onInvalid);
   return (

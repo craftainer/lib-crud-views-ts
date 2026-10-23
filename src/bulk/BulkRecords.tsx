@@ -107,7 +107,7 @@ export function BulkPanel({
                 <TableCell padding="checkbox">
                   <Checkbox
                     checked={on}
-                    onChange={() => selection.toggle(id)}
+                    onChange={() => selection.toggle(id, ids)}
                     slotProps={{
                       input: { "aria-label": `Select record ${id}` },
                     }}

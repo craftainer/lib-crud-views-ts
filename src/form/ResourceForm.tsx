@@ -128,7 +128,9 @@ export function ResourceForm(props: ResourceFormProps): ReactElement | null {
   if (presentation !== "page" && props.open !== true) return null;
   return (
     <ResourceGate name={props.name} apiVersion={props.apiVersion}>
-      {(ready) => <FormController ready={ready} {...props} />}
+      {(ready) => (
+        <FormController key={props.id ?? "new"} ready={ready} {...props} />
+      )}
     </ResourceGate>
   );
 }

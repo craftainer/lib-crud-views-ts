@@ -325,6 +325,32 @@ describe("input renderers", () => {
       expect(spy).toHaveBeenLastCalledWith(null);
     });
 
+    it("forgets unparsable text when the value is set from outside", () => {
+      const spy = vi.fn();
+      const f = field({ kind: "number", label: "Thing" });
+      const view = (value: FieldValue) => (
+        <FieldInput
+          field={f}
+          resource="r"
+          value={value}
+          onChange={() => {}}
+          onInvalid={spy}
+        />
+      );
+      const { rerender } = render(view(1));
+      const input = screen.getByLabelText("Thing") as HTMLInputElement;
+      Object.defineProperty(input, "validity", {
+        value: { badInput: true },
+        configurable: true,
+      });
+      fireEvent.change(input, { target: { value: "" } });
+      expect(spy).toHaveBeenLastCalledWith("Enter a number");
+      rerender(view(null));
+      rerender(view(5));
+      expect(spy).toHaveBeenLastCalledWith(null);
+      expect(screen.queryByText("Enter a number")).toBeNull();
+    });
+
     it("reports text the browser cannot parse as a number", () => {
       const { spy } = withSpy({ kind: "number" }, 1);
       const input = screen.getByLabelText("Thing") as HTMLInputElement;
