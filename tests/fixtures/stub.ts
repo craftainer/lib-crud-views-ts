@@ -7,6 +7,7 @@ import {
   type JsonObject,
 } from "@craftainer/crud-sdk";
 import manifest from "./manifest.json" with { type: "json" };
+import { listPage, preconditionFailed } from "./routes/list.ts";
 
 export const stubManifest = manifest;
 
@@ -83,8 +84,14 @@ const json = (status: number, body: unknown): Response =>
 export function createStubClient(options: StubOptions = {}): Stub {
   const { manifest: manifestMode = "ok", list: listMode = "ok" } = options;
   const tables = new Map<string, JsonObject[]>([
-    ["/api/crud/v1/heroes/v2/json", [...(options.heroes ?? heroRows)]],
-    ["/api/crud/v1/quests/v1/json", [...(options.quests ?? questRows)]],
+    [
+      "/api/crud/v1/heroes/v2/json",
+      (options.heroes ?? heroRows).map((r) => ({ ...r })),
+    ],
+    [
+      "/api/crud/v1/quests/v1/json",
+      (options.quests ?? questRows).map((r) => ({ ...r })),
+    ],
   ]);
   const requests: string[] = [];
   let nextId = 100;
@@ -126,9 +133,7 @@ export function createStubClient(options: StubOptions = {}): Stub {
       if (listMode === "pending") return never();
       if (listMode === "error")
         return json(500, { title: "boom", status: 500 });
-      const skip = Number(url.searchParams.get("skip") ?? 0);
-      const limit = Number(url.searchParams.get("limit") ?? rows.length);
-      return json(200, rows.slice(skip, skip + limit));
+      return json(200, listPage(url.searchParams, rows));
     }
     if (request.method === "POST") {
       const created = {
@@ -143,6 +148,8 @@ export function createStubClient(options: StubOptions = {}): Stub {
     if (row === undefined)
       return json(404, { title: "Not found", status: 404 });
     if (request.method === "PATCH") {
+      const stale = preconditionFailed(request, row);
+      if (stale !== undefined) return stale;
       Object.assign(row, (await request.json()) as JsonObject);
       return json(200, row);
     }
