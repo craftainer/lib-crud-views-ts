@@ -18,8 +18,12 @@ for data and TanStack Query for caching. This version ships the **core**:
   process-wide;
 - layout shells: `PageShell`, `DialogShell`, `DrawerShell`.
 
-The list, filter, form, detail, revision, bulk and stats views build on it and
-land in later releases. The package is theme-agnostic (it reads only the MUI
+The views build on it, one directory per area under `src/`: list (table,
+cards, load-more), filter (bar, builder, facets, URL query state), form
+(create and edit, validation, auto-save, conflicts), delete (four delete
+variants), detail (record page, field list), revisions (history and diff),
+bulk (selection, publish, delete, export), lifecycle (drafts, archive, trash,
+status filter) and stats (stats dashboard and predictions). The package is theme-agnostic (it reads only the MUI
 theme it is given) and uses only the MIT tier of MUI X. It is an instance of
 [`template-npm-package`](https://github.com/craftainer/template-npm-package);
 the conventions shared with every instance are in

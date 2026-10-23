@@ -186,6 +186,43 @@ describe("describeFields on odd schemas", () => {
     expect(f.get("nul")?.nullable).toBe(true);
   });
 
+  it("follows $ref chains, JSON-pointer escapes and Pydantic $defs names", () => {
+    const r = synthetic({
+      chained: { $ref: "#/$defs/Alias" },
+      sibling: { $ref: "#/$defs/Alias", description: "kept" },
+      slash: { $ref: "#/$defs/a~1b" },
+      tilde: { $ref: "#/$defs/a~0b" },
+      encoded: { $ref: "#/$defs/Page%5BHero%5D" },
+      stray: { $ref: "#/$defs/100%" },
+      loop: { $ref: "#/$defs/Loop" },
+      brokenchain: { $ref: "#/$defs/Dangling" },
+    });
+    const schema = r.schemas.read as Record<string, unknown>;
+    schema["$defs"] = {
+      Alias: { $ref: "#/$defs/Inner" },
+      Inner: { $ref: "#/$defs/Level2" },
+      Level2: { enum: ["p", "q"], type: "string" },
+      "a/b": { type: "integer" },
+      "a~b": { type: "boolean" },
+      "Page[Hero]": { type: "string", format: "date" },
+      "100%": { type: "number" },
+      Loop: { $ref: "#/$defs/Loop" },
+      Dangling: { $ref: "#/$defs/Nope" },
+    };
+    const f = byName(r);
+    expect(f.get("chained")).toMatchObject({
+      kind: "enum",
+      choices: ["p", "q"],
+    });
+    expect(f.get("sibling")?.kind).toBe("enum");
+    expect(f.get("slash")?.kind).toBe("integer");
+    expect(f.get("tilde")?.kind).toBe("boolean");
+    expect(f.get("encoded")).toMatchObject({ kind: "date", format: "date" });
+    expect(f.get("stray")?.kind).toBe("number");
+    expect(f.get("loop")?.kind).toBe("json");
+    expect(f.get("brokenchain")?.kind).toBe("json");
+  });
+
   it("derives readOnly and required from create/update, and falls back to the spec", () => {
     const r = synthetic(
       {

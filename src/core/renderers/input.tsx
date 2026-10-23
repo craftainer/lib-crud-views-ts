@@ -4,7 +4,7 @@ import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import { useId, useState, type ReactElement } from "react";
+import { useEffect, useId, useRef, useState, type ReactElement } from "react";
 import { humanize } from "../fields.ts";
 import { emptyValue } from "../values.ts";
 import type { FieldValue, InputRendererProps } from "../types.ts";
@@ -35,6 +35,36 @@ function common(props: InputRendererProps): {
   };
 }
 
+/**
+ * Tells `onInvalid` when `reason` changes, and clears it when the input
+ * unmounts so a hidden field never keeps a form blocked.
+ */
+function useReportInvalid(
+  reason: string | null,
+  onInvalid: InputRendererProps["onInvalid"],
+): void {
+  const callback = useRef(onInvalid);
+  const reported = useRef<string | null>(null);
+  useEffect(() => {
+    callback.current = onInvalid;
+  });
+  useEffect(() => {
+    if (reported.current !== reason) {
+      reported.current = reason;
+      callback.current?.(reason);
+    }
+  }, [reason]);
+  useEffect(
+    () => () => {
+      if (reported.current !== null) {
+        reported.current = null;
+        callback.current?.(null);
+      }
+    },
+    [],
+  );
+}
+
 const text = (value: FieldValue): string =>
   typeof value === "string" || typeof value === "number" ? String(value) : "";
 
@@ -62,19 +92,51 @@ export function StringInput(props: InputRendererProps): ReactElement {
   );
 }
 
+/** Why a number is out of the field's bounds, or `null`. */
+function numberProblem(
+  field: InputRendererProps["field"],
+  value: FieldValue,
+): string | null {
+  if (typeof value !== "number") return null;
+  const { minimum, maximum } = field.constraints;
+  if (field.kind === "integer" && !Number.isInteger(value)) {
+    return "Enter a whole number";
+  }
+  if (minimum !== undefined && value < minimum) {
+    return `Must be at least ${minimum}`;
+  }
+  if (maximum !== undefined && value > maximum) {
+    return `Must be at most ${maximum}`;
+  }
+  return null;
+}
+
 export function NumberInput(props: InputRendererProps): ReactElement {
   const { field, value, onChange } = props;
   const { minimum, maximum } = field.constraints;
+  // The browser hands over "" for text that is not a number; remember that.
+  const [unparsable, setUnparsable] = useState(false);
+  // A number set from outside (reset, reload) replaces whatever was typed.
+  const [seen, setSeen] = useState(value);
+  if (seen !== value) {
+    setSeen(value);
+    if (typeof value === "number") setUnparsable(false);
+  }
+  const problem = unparsable ? "Enter a number" : numberProblem(field, value);
+  useReportInvalid(problem, props.onInvalid);
   return (
     <TextField
       {...common(props)}
       type="number"
       value={text(value)}
-      onChange={(e) =>
+      error={problem !== null || props.error !== undefined}
+      helperText={props.error ?? problem ?? props.helperText}
+      onChange={(e) => {
+        setUnparsable(e.target.value === "" && e.target.validity.badInput);
         onChange(
           e.target.value === "" ? emptyValue(field) : Number(e.target.value),
-        )
-      }
+        );
+      }}
       slotProps={{
         htmlInput: {
           min: minimum,
@@ -231,6 +293,7 @@ export function ArrayInput(props: InputRendererProps): ReactElement {
   const invalid =
     numeric &&
     draft.split(",").some((s) => s.trim() !== "" && Number.isNaN(Number(s)));
+  useReportInvalid(invalid ? "Items must be numbers" : null, props.onInvalid);
   return (
     <TextField
       {...common(props)}
@@ -274,6 +337,7 @@ export function JsonInput(props: InputRendererProps): ReactElement {
   );
   // Derived from the text, so it follows resets of the draft.
   const invalid = draft.trim() !== "" && !isJson(draft);
+  useReportInvalid(invalid ? "Not valid JSON" : null, props.onInvalid);
   return (
     <TextField
       {...common(props)}

@@ -174,3 +174,24 @@ for tests and custom field components.
 - Append the view area's `export * from "./<area>/index.ts"` line to
   `src/index.ts` (the only shared file), and add stories and tests in the
   area's own directory.
+
+## 7. Addendum (2026-10-22): `onInvalid`
+
+Additive, so compatible with the freeze (ADR
+[0002](../adrs/0002-core-design-and-field-renderers.md), addendum). The input
+role gains one optional prop:
+
+```ts
+onInvalid?: (reason: string | null) => void;
+```
+
+A built-in input calls it with a message while its own draft is invalid
+(a number the browser cannot parse, a number outside `minimum`/`maximum` or
+not whole for an `integer` field, malformed JSON, non-numeric array items)
+and with `null` once it is valid again or unmounts. A form blocks submit while
+any field reports a reason. Custom input renderers may ignore the prop; the
+form still validates the values it holds.
+
+`describeFields` resolves local `$ref`s through chains (`A` -> `B` -> schema),
+cycles (left unresolved), JSON-pointer escapes (`~1` for `/`, `~0` for `~`) and
+percent-encoded names (Pydantic's `Page[Hero]` as `Page%5BHero%5D`).

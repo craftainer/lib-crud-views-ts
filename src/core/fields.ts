@@ -36,16 +36,38 @@ interface Node {
   readonly constraints: FieldConstraints;
 }
 
-function resolveRef(node: JsonObject, root: JsonObject): JsonObject {
+/** A JSON pointer segment of a `$ref` fragment: percent-decoded, then `~1` -> `/` and `~0` -> `~`. */
+function unescapePointer(segment: string): string {
+  let decoded = segment;
+  try {
+    decoded = decodeURIComponent(segment);
+  } catch {
+    // A stray `%` is kept literally.
+  }
+  return decoded.replace(/~1/g, "/").replace(/~0/g, "~");
+}
+
+/**
+ * Follows a local `$ref` (`#/$defs/Name`, also through chains of refs) and
+ * merges the target under the node's own members. An unresolvable or cyclic
+ * ref leaves the node as it is.
+ */
+function resolveRef(
+  node: JsonObject,
+  root: JsonObject,
+  seen: ReadonlySet<string> = new Set(),
+): JsonObject {
   const ref = node["$ref"];
-  if (typeof ref !== "string" || !ref.startsWith("#/")) {
+  if (typeof ref !== "string" || !ref.startsWith("#/") || seen.has(ref)) {
     return node;
   }
   let target: unknown = root;
-  for (const part of ref.slice(2).split("/")) {
-    target = isObject(target) ? target[part] : undefined;
+  for (const part of ref.slice(2).split("/").map(unescapePointer)) {
+    target = isObject(target) ? own(target, part) : undefined;
   }
-  return isObject(target) ? { ...target, ...node, $ref: undefined } : node;
+  if (!isObject(target)) return node;
+  const resolved = resolveRef(target, root, new Set([...seen, ref]));
+  return { ...resolved, ...node, $ref: undefined };
 }
 
 const num = (value: unknown): number | undefined =>

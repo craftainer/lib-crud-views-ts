@@ -105,6 +105,14 @@ export interface InputRendererProps extends RendererBase {
   readonly disabled?: boolean | undefined;
   readonly autoFocus?: boolean | undefined;
   readonly id?: string | undefined;
+  /**
+   * Reports whether the input's own draft is invalid, with the reason: it is
+   * called with a message when the draft cannot be turned into a valid value
+   * (non-numeric, malformed JSON, out of range) and with `null` when it is
+   * valid again (or the input unmounts). A form blocks submit while any field
+   * reports a reason. Additive to the frozen I4 (ADR 0002 addendum).
+   */
+  readonly onInvalid?: ((reason: string | null) => void) | undefined;
 }
 
 /** Edits the filter of one field. Emits `undefined` when cleared. */
