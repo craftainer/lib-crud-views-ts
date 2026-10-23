@@ -3,15 +3,20 @@
 import type { JsonObject } from "@craftainer/crud-sdk";
 import type { StubRoute } from "../stub.ts";
 
-const versions = new WeakMap<JsonObject, number>();
-
-/** The ETag the stub currently holds for `row`. */
+/**
+ * The one ETag rule of the stub: derived from the record's id and `updated_at`,
+ * so apps can compute it from a list row too (the list endpoint sends no ETag).
+ * `If-Match` is checked only for weak `W/"` values that differ (412); any other
+ * value passes, as for an opaque server.
+ */
 export const etagOf = (row: JsonObject): string =>
-  `W/"${String(row["id"])}-${versions.get(row) ?? 1}"`;
+  `W/"${String(row["id"])}-${String(row["updated_at"])}"`;
 
-/** Changes `row` behind the client's back: its old ETag goes stale. */
+/** Changes `row` behind the client's back: `updated_at` moves on, so its old ETag goes stale. */
 export function touch(row: JsonObject): void {
-  versions.set(row, (versions.get(row) ?? 1) + 1);
+  row["updated_at"] = new Date(
+    Date.parse(String(row["updated_at"])) + 1000,
+  ).toISOString();
 }
 
 const problem = (status: number, body: Record<string, unknown>): Response =>
