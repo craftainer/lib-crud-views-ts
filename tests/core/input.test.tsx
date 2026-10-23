@@ -286,4 +286,115 @@ describe("input renderers", () => {
     rerender(view(["y", "z"]));
     expect(screen.getByLabelText("F")).toHaveValue("y, z");
   });
+
+  describe("onInvalid", () => {
+    const withSpy = (
+      f: Partial<FieldDescriptor>,
+      initial?: FieldValue,
+    ): {
+      spy: ReturnType<typeof vi.fn>;
+      user: ReturnType<typeof userEvent.setup>;
+    } => {
+      const spy = vi.fn();
+      const a = setup(f, initial, { onInvalid: spy });
+      return { spy, user: a.user };
+    };
+
+    it("reports out-of-range and non-integer numbers, and clears when valid", async () => {
+      const { spy, user } = withSpy(
+        {
+          kind: "integer",
+          constraints: { ...field().constraints, minimum: 2, maximum: 9 },
+        },
+        5,
+      );
+      const input = screen.getByLabelText("Thing");
+      expect(spy).not.toHaveBeenCalled();
+      await user.clear(input);
+      await user.type(input, "1");
+      expect(spy).toHaveBeenLastCalledWith("Must be at least 2");
+      expect(screen.getByText("Must be at least 2")).toBeInTheDocument();
+      await user.clear(input);
+      await user.type(input, "99");
+      expect(spy).toHaveBeenLastCalledWith("Must be at most 9");
+      await user.clear(input);
+      await user.type(input, "3.5");
+      expect(spy).toHaveBeenLastCalledWith("Enter a whole number");
+      await user.clear(input);
+      await user.type(input, "4");
+      expect(spy).toHaveBeenLastCalledWith(null);
+    });
+
+    it("reports text the browser cannot parse as a number", () => {
+      const { spy } = withSpy({ kind: "number" }, 1);
+      const input = screen.getByLabelText("Thing") as HTMLInputElement;
+      Object.defineProperty(input, "validity", {
+        value: { badInput: true },
+        configurable: true,
+      });
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.change(input, { target: { value: "" } });
+      expect(spy).toHaveBeenLastCalledWith("Enter a number");
+      Object.defineProperty(input, "validity", {
+        value: { badInput: false },
+        configurable: true,
+      });
+      fireEvent.change(input, { target: { value: "7" } });
+      expect(spy).toHaveBeenLastCalledWith(null);
+    });
+
+    it("reports bad JSON and non-numeric array items", async () => {
+      const j = withSpy({ kind: "json", label: "Js" });
+      await j.user.type(screen.getByLabelText("Js"), "{{");
+      expect(j.spy).toHaveBeenLastCalledWith("Not valid JSON");
+      await j.user.clear(screen.getByLabelText("Js"));
+      expect(j.spy).toHaveBeenLastCalledWith(null);
+      const a = withSpy({ kind: "array", itemKind: "number", label: "Arr" });
+      await a.user.type(screen.getByLabelText("Arr"), "1,x");
+      expect(a.spy).toHaveBeenLastCalledWith("Items must be numbers");
+    });
+
+    it("reports an initially invalid value once, and clears it on unmount", () => {
+      const spy = vi.fn();
+      const f = field({
+        kind: "integer",
+        constraints: { ...field().constraints, maximum: 1 },
+      });
+      const { unmount, rerender } = render(
+        <FieldInput
+          field={f}
+          resource="r"
+          value={5}
+          onChange={() => {}}
+          onInvalid={spy}
+        />,
+      );
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith("Must be at most 1");
+      rerender(
+        <FieldInput field={f} resource="r" value={5} onChange={() => {}} />,
+      );
+      unmount();
+      expect(spy).toHaveBeenLastCalledWith("Must be at most 1");
+    });
+
+    it("clears the report when an invalid field unmounts", () => {
+      const spy = vi.fn();
+      const f = field({
+        kind: "integer",
+        constraints: { ...field().constraints, maximum: 1 },
+      });
+      const { unmount } = render(
+        <FieldInput
+          field={f}
+          resource="r"
+          value={5}
+          onChange={() => {}}
+          onInvalid={spy}
+        />,
+      );
+      unmount();
+      expect(spy).toHaveBeenLastCalledWith(null);
+    });
+  });
 });

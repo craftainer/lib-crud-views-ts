@@ -76,3 +76,18 @@ input?, filter? })`, since one component per type cannot express three roles.
   approximates the direction with system fonts so baselines stay stable.
 - Release is staged (`npm stage publish`) through the template's contract; the
   first version waits on the user's 2FA approval.
+
+## Addendum (2026-10-22): `onInvalid` and `$ref` chains
+
+Found while building the form views (VW2); both are additive to the I4
+contract.
+
+- `InputRendererProps` gains an optional `onInvalid(reason | null)`. A draft
+  that cannot become a valid value (unparsable number, bad JSON) never reaches
+  `onChange`, so a form could not otherwise tell that the field holds text it
+  would silently drop. Built-in inputs report the reason, and `null` when the
+  draft is valid again or the input unmounts; forms block submit meanwhile.
+  Custom renderers may ignore it.
+- `describeFields` follows `$ref` chains and JSON-pointer escapes (`~0`, `~1`,
+  percent-encoding), as Pydantic's `$defs` produce them; a cyclic or dangling
+  ref leaves the node unresolved (kind `json`).

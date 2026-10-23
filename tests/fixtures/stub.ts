@@ -7,6 +7,8 @@ import {
   type JsonObject,
 } from "@craftainer/crud-sdk";
 import manifest from "./manifest.json" with { type: "json" };
+import { deleteRoutes } from "./routes/delete.ts";
+import { formRoutes } from "./routes/form.ts";
 
 export const stubManifest = manifest;
 
@@ -58,6 +60,22 @@ export const questRows: readonly JsonObject[] = [
   { id: 2, title: "File the receipts", difficulty: "easy", due_on: null },
 ];
 
+/** What a per-area route sees: the request and the stub's in-memory tables. */
+export interface StubRouteContext {
+  readonly request: Request;
+  readonly url: URL;
+  readonly tables: ReadonlyMap<string, JsonObject[]>;
+  readonly options: StubOptions;
+}
+
+/** A per-area route (tests/fixtures/routes/): answers a request, or `undefined` to pass. */
+export type StubRoute = (
+  context: StubRouteContext,
+) => Response | undefined | Promise<Response | undefined>;
+
+/** Routes consulted before the generic table routes, in order. */
+const routes: readonly StubRoute[] = [formRoutes, deleteRoutes];
+
 export interface StubOptions {
   readonly heroes?: readonly JsonObject[];
   readonly quests?: readonly JsonObject[];
@@ -65,13 +83,25 @@ export interface StubOptions {
   readonly manifest?: "ok" | "pending" | "down";
   /** The list endpoint's answer: `"pending"` never answers, `"error"` is a 500. */
   readonly list?: "ok" | "pending" | "error";
+  /** `true`: DELETE on heroes v2 archives the row and `restore` brings it back. */
+  readonly softDelete?: boolean;
+  /** Edits a copy of the manifest before it is served (tests of gated features). */
+  readonly manifestPatch?: (manifest: typeof stubManifest) => void;
 }
 
 export interface Stub {
   readonly client: CrudClient;
   /** `METHOD path?query` of every request, in order. */
   readonly requests: string[];
+  /** The stub's rows by path, for tests that change the server behind the client. */
+  readonly tables: ReadonlyMap<string, JsonObject[]>;
 }
+
+const patched = (options: StubOptions): typeof manifest => {
+  const copy = structuredClone(manifest);
+  options.manifestPatch?.(copy);
+  return copy;
+};
 
 const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), {
@@ -116,7 +146,11 @@ export function createStubClient(options: StubOptions = {}): Stub {
       if (manifestMode === "pending") return never();
       return manifestMode === "down"
         ? json(503, { title: "down", status: 503 })
-        : json(200, manifest);
+        : json(200, patched(options));
+    }
+    for (const route of routes) {
+      const answer = await route({ request, url, tables, options });
+      if (answer !== undefined) return answer;
     }
     const rows = tables.get(url.pathname);
     if (rows === undefined)
@@ -159,5 +193,6 @@ export function createStubClient(options: StubOptions = {}): Stub {
       fetch: stubFetch as typeof fetch,
     }),
     requests,
+    tables,
   };
 }
