@@ -120,3 +120,7 @@ coverage/
 storybook-static/
 playwright-report/
 test-results/
+
+# Python bytecode (the scripts-tests hook runs the tests in-tree)
+__pycache__/
+*.pyc
