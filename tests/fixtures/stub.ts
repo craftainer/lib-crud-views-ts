@@ -7,6 +7,7 @@ import {
   type JsonObject,
 } from "@craftainer/crud-sdk";
 import manifest from "./manifest.json" with { type: "json" };
+import { statsRoute } from "./routes/stats.ts";
 
 export const stubManifest = manifest;
 
@@ -118,6 +119,8 @@ export function createStubClient(options: StubOptions = {}): Stub {
         ? json(503, { title: "down", status: 503 })
         : json(200, manifest);
     }
+    const routed = statsRoute(url);
+    if (routed !== undefined) return routed;
     const rows = tables.get(url.pathname);
     if (rows === undefined)
       return json(404, { title: "Not stubbed", status: 404 });
