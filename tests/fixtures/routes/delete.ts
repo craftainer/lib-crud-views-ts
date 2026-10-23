@@ -1,6 +1,5 @@
-// Stub routes for the delete views: with `softDelete`, DELETE on heroes v2
-// archives the row, lists hide archived rows unless `include_archived=true`,
-// and `restore` brings a row back.
+// Stub route for soft delete: with `softDelete`, DELETE of one heroes v2 row
+// archives it (the list route hides archived rows; `restore` is in detail.ts).
 import type { StubRoute } from "../stub.ts";
 
 const HEROES = "/api/crud/v1/heroes/v2/json";
@@ -22,19 +21,6 @@ export const deleteRoutes: StubRoute = ({ request, url, tables, options }) => {
       return json(404, { title: "Not found", status: 404 });
     row["archived_at"] = ARCHIVED_AT;
     return new Response(null, { status: 204 });
-  }
-  if (url.pathname === `${HEROES}/restore` && request.method === "POST") {
-    if (row === undefined)
-      return json(404, { title: "Not found", status: 404 });
-    row["archived_at"] = null;
-    return json(200, { matched: 1, ids: [row["id"]] });
-  }
-  if (url.pathname === HEROES && request.method === "GET" && id === null) {
-    const all = url.searchParams.get("include_archived") === "true";
-    return json(
-      200,
-      rows.filter((r) => all || r["archived_at"] === null),
-    );
   }
   return undefined;
 };

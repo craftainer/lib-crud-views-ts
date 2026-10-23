@@ -10,6 +10,7 @@ import manifest from "./manifest.json" with { type: "json" };
 import { deleteRoutes } from "./routes/delete.ts";
 import { formRoutes } from "./routes/form.ts";
 import { listPage } from "./routes/list.ts";
+import { detailRoutes } from "./routes/detail.ts";
 
 export const stubManifest = manifest;
 
@@ -75,7 +76,11 @@ export type StubRoute = (
 ) => Response | undefined | Promise<Response | undefined>;
 
 /** Routes consulted before the generic table routes, in order. */
-const routes: readonly StubRoute[] = [formRoutes, deleteRoutes];
+const routes: readonly StubRoute[] = [
+  formRoutes,
+  deleteRoutes,
+  detailRoutes,
+];
 
 export interface StubOptions {
   readonly heroes?: readonly JsonObject[];
