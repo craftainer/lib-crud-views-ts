@@ -14,14 +14,15 @@ import {
   type ReadyResource,
   type RendererOverrides,
 } from "../core/index.ts";
-import { useRestore } from "./restore.ts";
+import { ArchiveButton } from "../lifecycle/ArchiveControls.tsx";
 
 /**
  * - `immediate`: delete on click.
  * - `confirm`: ask first, showing the record.
  * - `undo`: hold the deletion back for `undoMs`; Undo cancels it.
  * - `soft`: delete (the server archives the record) and offer Undo, which
- *   restores it; needs the `archive_restore` capability, else renders nothing.
+ *   restores it; renders lifecycle's `ArchiveButton`, needs the `archive_restore`
+ *   capability, else renders nothing.
  */
 export type DeleteVariant = "immediate" | "confirm" | "undo" | "soft";
 
@@ -60,7 +61,22 @@ export function DeleteAction(props: DeleteActionProps): ReactElement {
       pending={<></>}
       fallback={() => null}
     >
-      {(ready) => <DeleteController ready={ready} {...props} />}
+      {(ready) =>
+        props.variant === "soft" ? (
+          ready.capabilities.archive_restore ? (
+            <ArchiveButton
+              ready={ready}
+              id={props.id}
+              label={props.label ?? "Delete"}
+              ariaLabel={`${props.label ?? "Delete"} ${props.recordLabel ?? "record"} ${props.id}`}
+              onArchived={() => props.onDeleted?.(props.id)}
+              onUndone={() => props.onUndone?.(props.id)}
+            />
+          ) : null
+        ) : (
+          <DeleteController ready={ready} {...props} />
+        )
+      }
     </ResourceGate>
   );
 }
@@ -116,7 +132,6 @@ function DeleteController({
   const { id, variant = "confirm", undoMs = 6000 } = props;
   const label = props.recordLabel ?? "record";
   const remove = ready.hooks.useDelete();
-  const restore = useRestore(ready, props.name, props.apiVersion);
   const [confirming, setConfirming] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -167,27 +182,11 @@ function DeleteController({
     }, undoMs);
   };
 
-  const undoSoft = (): void => {
-    setToast({
-      text: `Moved ${label} ${id} to the trash`,
-      undo: () => {
-        setToast(null);
-        restore.mutate(id, {
-          onSuccess: () => props.onUndone?.(id),
-          onError: (failure) => setError(failure.message),
-        });
-      },
-    });
-  };
-
   const click = (): void => {
     if (variant === "confirm") setConfirming(true);
     else if (variant === "undo") undoLater();
-    else if (variant === "soft") void run().then((ok) => ok && undoSoft());
     else void run();
   };
-
-  if (variant === "soft" && !ready.capabilities.archive_restore) return null;
 
   return (
     <>
@@ -231,7 +230,7 @@ function DeleteController({
       <Snackbar
         open={toast !== null}
         message={toast?.text}
-        autoHideDuration={variant === "soft" ? 6000 : null}
+        autoHideDuration={null}
         onClose={(_event, reason) => {
           if (reason !== "clickaway") setToast(null);
         }}

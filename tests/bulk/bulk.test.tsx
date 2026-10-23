@@ -107,7 +107,10 @@ const selectionOf = (over: Partial<BulkSelection>): BulkSelection => ({
 
 describe("BulkRecords", () => {
   it("shows no toolbar until something is ticked, then counts", async () => {
-    renderCrud(<BulkRecords resource="heroes" />, { heroes: fresh(), listDrafts: true });
+    renderCrud(<BulkRecords resource="heroes" />, {
+      heroes: fresh(),
+      listDrafts: true,
+    });
     await screen.findByText("Captain Ledger");
     expect(screen.queryByText(/ selected$/)).toBeNull();
     await userEvent.click(
@@ -170,7 +173,10 @@ describe("BulkRecords", () => {
   });
 
   it("says record when one is deleted", async () => {
-    renderCrud(<BulkRecords resource="heroes" />, { heroes: fresh(), listDrafts: true });
+    renderCrud(<BulkRecords resource="heroes" />, {
+      heroes: fresh(),
+      listDrafts: true,
+    });
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select record 1" }),
     );
@@ -268,7 +274,10 @@ describe("BulkRecords", () => {
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => {});
-    renderCrud(<BulkRecords resource="heroes" />, { heroes: fresh(), listDrafts: true });
+    renderCrud(<BulkRecords resource="heroes" />, {
+      heroes: fresh(),
+      listDrafts: true,
+    });
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select record 1" }),
     );

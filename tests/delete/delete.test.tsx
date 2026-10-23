@@ -10,7 +10,6 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DeleteAction,
-  TrashView,
   type DeleteActionProps,
   type DisplayRendererProps,
 } from "../../src/index.ts";
@@ -131,6 +130,20 @@ describe("DeleteAction", () => {
     ).toBeEnabled();
   });
 
+  it("keeps the waiting toast on a click elsewhere and closes it on Escape", async () => {
+    const view = setup({ variant: "undo", undoMs: 600_000 });
+    await view.user.click(
+      await screen.findByRole("button", { name: "Delete record 1" }),
+    );
+    await screen.findByText("Deleting record 1…");
+    await view.user.click(document.body);
+    expect(screen.getByText("Deleting record 1…")).toBeInTheDocument();
+    await view.user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByText("Deleting record 1…")).toBeNull(),
+    );
+  });
+
   it("commits a waiting undo deletion when the button goes away", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const view = setup({ variant: "undo" });
@@ -189,9 +202,7 @@ describe("DeleteAction", () => {
       await view.user.click(
         await screen.findByRole("button", { name: "Delete record 1" }),
       );
-      expect(
-        await screen.findByText("Moved record 1 to the trash"),
-      ).toBeInTheDocument();
+      expect(await screen.findByText("Record archived")).toBeInTheDocument();
       expect(onDeleted).toHaveBeenCalledWith(1);
       expect(view.heroes[0]?.["archived_at"]).not.toBeNull();
       await view.user.click(screen.getByRole("button", { name: "Undo" }));
@@ -205,14 +216,12 @@ describe("DeleteAction", () => {
       await view.user.click(
         await screen.findByRole("button", { name: "Delete record 1" }),
       );
-      await screen.findByText("Moved record 1 to the trash");
+      await screen.findByText("Record archived");
       await view.user.click(document.body);
-      expect(
-        screen.getByText("Moved record 1 to the trash"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Record archived")).toBeInTheDocument();
       await view.user.keyboard("{Escape}");
       await waitFor(() =>
-        expect(screen.queryByText("Moved record 1 to the trash")).toBeNull(),
+        expect(screen.queryByText("Record archived")).toBeNull(),
       );
     });
 
@@ -222,7 +231,7 @@ describe("DeleteAction", () => {
         await screen.findByRole("button", { name: "Delete record 99" }),
       );
       await screen.findByRole("alert");
-      expect(screen.queryByText(/to the trash/)).toBeNull();
+      expect(screen.queryByText(/Record archived/)).toBeNull();
     });
 
     it("reports a failed restore", async () => {
@@ -230,10 +239,10 @@ describe("DeleteAction", () => {
       await view.user.click(
         await screen.findByRole("button", { name: "Delete record 1" }),
       );
-      await screen.findByText("Moved record 1 to the trash");
+      await screen.findByText("Record archived");
       view.stub.tables.get(HEROES)?.splice(0, 1);
       await view.user.click(screen.getByRole("button", { name: "Undo" }));
-      expect(await screen.findByRole("alert")).toHaveTextContent("Not found");
+      expect(await screen.findByText(/Not found/)).toBeInTheDocument();
     });
 
     it("is hidden for a resource without archive and restore", async () => {
@@ -244,95 +253,5 @@ describe("DeleteAction", () => {
       await new Promise((r) => setTimeout(r, 50));
       expect(screen.queryByRole("button")).toBeNull();
     });
-  });
-});
-
-describe("TrashView", () => {
-  const archived = (): JsonObject[] =>
-    fresh().map((r, i) =>
-      i === 1 ? { ...r, archived_at: "2026-02-03T04:05:06Z" } : r,
-    );
-
-  it("lists archived records and restores one", async () => {
-    const onRestored = vi.fn();
-    const heroes = archived();
-    const user = userEvent.setup();
-    const view = renderCrud(
-      <TrashView
-        name="heroes"
-        apiVersion="v2"
-        recordLabel="hero"
-        onRestored={onRestored}
-      />,
-      { heroes, softDelete: true },
-    );
-    expect(await screen.findByRole("table", { name: "Trash" })).toBeVisible();
-    expect(screen.getByText("The Margin")).toBeInTheDocument();
-    expect(screen.queryByText("Captain Ledger")).toBeNull();
-    expect(
-      screen.getByRole("columnheader", { name: "Archived at" }),
-    ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Restore hero 2" }));
-    await waitFor(() => expect(onRestored).toHaveBeenCalledWith(2));
-    expect(heroes[1]?.["archived_at"]).toBeNull();
-    expect(await screen.findByText("The trash is empty.")).toBeInTheDocument();
-    expect(
-      view.stub.requests.some((r) => r.includes("include_archived=true")),
-    ).toBe(true);
-  });
-
-  it("shows the chosen fields through the renderers, ignoring unknown names", async () => {
-    const Shout = ({ value }: DisplayRendererProps) => (
-      <b>{String(value).toUpperCase()}</b>
-    );
-    renderCrud(
-      <TrashView
-        name="heroes"
-        fields={["name", "nope"]}
-        renderers={{ "heroes.name": { display: Shout } }}
-      />,
-      { heroes: archived(), softDelete: true },
-    );
-    expect(await screen.findByText("THE MARGIN")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("columnheader", { name: "Archived at" }),
-    ).toBeNull();
-  });
-
-  it("says the trash is empty, spins while loading and reports a list error", async () => {
-    const empty = renderCrud(<TrashView name="heroes" />, {
-      heroes: fresh(),
-      softDelete: true,
-    });
-    expect(await screen.findByText("The trash is empty.")).toBeInTheDocument();
-    empty.unmount();
-    const loading = renderCrud(<TrashView name="heroes" />, {
-      list: "pending",
-    });
-    expect(
-      await screen.findByRole("progressbar", { name: "Loading" }),
-    ).toBeVisible();
-    loading.unmount();
-    renderCrud(<TrashView name="heroes" />, { list: "error" });
-    expect(await screen.findByRole("alert")).toBeVisible();
-  });
-
-  it("reports a failed restore", async () => {
-    const view = renderCrud(<TrashView name="heroes" />, {
-      heroes: archived(),
-      softDelete: true,
-    });
-    const user = userEvent.setup();
-    await screen.findByRole("button", { name: "Restore record 2" });
-    view.stub.tables.get(HEROES)?.splice(1, 1);
-    await user.click(screen.getByRole("button", { name: "Restore record 2" }));
-    expect(await screen.findByText(/Not found/)).toBeInTheDocument();
-  });
-
-  it("renders nothing for a resource without archive and restore", async () => {
-    const view = renderCrud(<TrashView name="quests" />);
-    await waitFor(() => expect(view.stub.requests.length).toBeGreaterThan(1));
-    expect(screen.queryByRole("table")).toBeNull();
-    expect(screen.queryByText("The trash is empty.")).toBeNull();
   });
 });

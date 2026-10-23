@@ -133,14 +133,8 @@ const rowsOf = (
 export function createStubClient(options: StubOptions = {}): Stub {
   const { manifest: manifestMode = "ok", list: listMode = "ok" } = options;
   const tables = new Map<string, JsonObject[]>([
-    [
-      "/api/crud/v1/heroes/v2/json",
-      rowsOf(options.heroes, heroRows),
-    ],
-    [
-      "/api/crud/v1/quests/v1/json",
-      rowsOf(options.quests, questRows),
-    ],
+    ["/api/crud/v1/heroes/v2/json", rowsOf(options.heroes, heroRows)],
+    ["/api/crud/v1/quests/v1/json", rowsOf(options.quests, questRows)],
   ]);
   const requests: string[] = [];
   let nextId = 100;
@@ -186,7 +180,9 @@ export function createStubClient(options: StubOptions = {}): Stub {
       if (listMode === "pending") return never();
       if (listMode === "error")
         return json(500, { title: "boom", status: 500 });
-      return json(200, listPage(
+      return json(
+        200,
+        listPage(
           options.listDrafts === true
             ? new URLSearchParams([
                 ...url.searchParams,
@@ -194,7 +190,8 @@ export function createStubClient(options: StubOptions = {}): Stub {
               ])
             : url.searchParams,
           rows,
-        ));
+        ),
+      );
     }
     if (request.method === "POST") {
       const created = {

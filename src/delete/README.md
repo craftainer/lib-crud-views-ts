@@ -3,9 +3,11 @@
 - `DeleteAction.tsx` — a delete button with four variants: `immediate`,
   `confirm` (dialog showing the record), `undo` (deletion waits `undoMs`; Undo
   cancels; leaving the page commits it), `soft` (delete, then an Undo toast that
-  restores; needs `archive_restore`, else it renders nothing).
-- `TrashView.tsx` — archived records with Restore (needs `archive_restore`).
-- `restore.ts` — the shared restore mutation, refreshing the resource's cache.
+  restores; needs `archive_restore`, else it renders nothing). `soft` renders
+  `lifecycle/ArchiveButton`, the one implementation of archive-with-undo.
+
+The trash list (archived records with Restore) is `lifecycle/TrashList` /
+`TrashPanel`, not part of this area.
 
 ## Don't
 

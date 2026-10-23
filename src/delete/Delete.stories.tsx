@@ -3,9 +3,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
-import { heroRows } from "../../tests/fixtures/stub.ts";
 import { DeleteAction, type DeleteActionProps } from "./DeleteAction.tsx";
-import { TrashView } from "./TrashView.tsx";
 
 /** A record card with its delete action, the way a list row or detail page hosts it. */
 function Card(props: Partial<DeleteActionProps>) {
@@ -64,28 +62,6 @@ export const SoftDelete: Story = {
   parameters: { stub: { softDelete: true } },
   play: async ({ canvasElement }) => {
     await press(canvasElement);
-    await within(document.body).findByText("Moved hero 1 to the trash");
+    await within(document.body).findByText("Record archived");
   },
-};
-
-const archived = heroRows.map((row, index) =>
-  index === 0 ? row : { ...row, archived_at: "2026-02-03T04:05:06Z" },
-);
-
-export const Trash: StoryObj<typeof TrashView> = {
-  render: () => (
-    <Paper variant="outlined" sx={{ m: 3 }}>
-      <TrashView name="heroes" recordLabel="hero" />
-    </Paper>
-  ),
-  parameters: { stub: { softDelete: true, heroes: archived } },
-};
-
-export const TrashEmpty: StoryObj<typeof TrashView> = {
-  render: () => (
-    <Paper variant="outlined" sx={{ m: 3 }}>
-      <TrashView name="heroes" />
-    </Paper>
-  ),
-  parameters: { stub: { softDelete: true } },
 };

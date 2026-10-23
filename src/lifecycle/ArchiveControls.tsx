@@ -43,8 +43,20 @@ export function ArchiveButton({
   ready,
   id,
   onDone,
+  onArchived,
+  onUndone,
+  label = "Archive",
+  ariaLabel,
   archived = false,
 }: RecordActionProps & {
+  /** Button text. Default "Archive". */
+  readonly label?: string | undefined;
+  /** Accessible name when the text alone is ambiguous, e.g. "Delete hero 1". */
+  readonly ariaLabel?: string | undefined;
+  /** Called once the record is archived (`onDone` also runs, as after an undo). */
+  readonly onArchived?: (() => void) | undefined;
+  /** Called once Undo restored the record. */
+  readonly onUndone?: (() => void) | undefined;
   /** The record is archived already: the button hides, an Undo toast can still show. */
   readonly archived?: boolean;
 }): ReactElement | null {
@@ -59,24 +71,28 @@ export function ArchiveButton({
         <Button
           color="error"
           size="small"
+          aria-label={ariaLabel}
           disabled={remove.isPending}
           onClick={() =>
             remove.mutate(id, {
               onSuccess: () => {
                 setUndoOpen(true);
+                onArchived?.();
                 onDone?.();
               },
             })
           }
         >
-          Archive
+          {label}
         </Button>
       )}
       {error !== null && <Alert severity="error">{error.message}</Alert>}
       <Snackbar
         open={undoOpen}
         autoHideDuration={8000}
-        onClose={() => setUndoOpen(false)}
+        onClose={(_event, reason) => {
+          if (reason !== "clickaway") setUndoOpen(false);
+        }}
         message="Record archived"
         action={
           <Button
@@ -86,6 +102,7 @@ export function ArchiveButton({
               restore.mutate(id, {
                 onSuccess: () => {
                   setUndoOpen(false);
+                  onUndone?.();
                   onDone?.();
                 },
               })
