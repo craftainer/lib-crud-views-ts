@@ -186,6 +186,7 @@ describe("lifecycle actions", () => {
   it("archives a record and refreshes without a callback", async () => {
     const { stub } = renderCrud(<RecordDetail resource="heroes" id={1} />, {
       heroes: fresh(),
+      softDelete: true,
     });
     await userEvent.click(
       await screen.findByRole("button", { name: "Archive" }),

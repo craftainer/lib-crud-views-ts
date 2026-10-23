@@ -1,9 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { screen, userEvent, within } from "storybook/test";
-import {
-  lifecycleHeroes,
-  manyHeroes,
-} from "../../tests/fixtures/routes/detail.ts";
+import { lifecycleHeroes } from "../../tests/fixtures/routes/detail.ts";
+import { manyHeroes } from "../../tests/fixtures/routes/list.ts";
 import { PageShell } from "../core/index.ts";
 import { BulkRecords } from "./index.ts";
 
@@ -35,7 +33,7 @@ export const NothingSelected: Story = {
 };
 
 export const SelectionToolbar: Story = {
-  parameters: { stub: { heroes: lifecycleHeroes() } },
+  parameters: { stub: { heroes: lifecycleHeroes(), listDrafts: true } },
   render: () => (
     <PageShell title="Heroes">
       <BulkRecords resource="heroes" />

@@ -93,6 +93,8 @@ export interface StubOptions {
   readonly list?: "ok" | "pending" | "error";
   /** `true`: DELETE on heroes v2 archives the row and `restore` brings it back. */
   readonly softDelete?: boolean;
+  /** `true`: lists include drafts, as if `include_unpublished` were always sent. */
+  readonly listDrafts?: boolean;
   /** Edits a copy of the manifest before it is served (tests of gated features). */
   readonly manifestPatch?: (manifest: typeof stubManifest) => void;
 }
@@ -117,17 +119,27 @@ const json = (status: number, body: unknown): Response =>
     headers: { "Content-Type": "application/json" },
   });
 
+/**
+ * Rows the caller passed are served as they are (tests read them back after a
+ * write); the shared defaults are copied so one stub never changes another's.
+ */
+const rowsOf = (
+  given: readonly JsonObject[] | undefined,
+  shared: readonly JsonObject[],
+): JsonObject[] =>
+  given === undefined ? shared.map((r) => ({ ...r })) : [...given];
+
 /** A client whose `fetch` serves the fixture manifest and in-memory rows. */
 export function createStubClient(options: StubOptions = {}): Stub {
   const { manifest: manifestMode = "ok", list: listMode = "ok" } = options;
   const tables = new Map<string, JsonObject[]>([
     [
       "/api/crud/v1/heroes/v2/json",
-      (options.heroes ?? heroRows).map((r) => ({ ...r })),
+      rowsOf(options.heroes, heroRows),
     ],
     [
       "/api/crud/v1/quests/v1/json",
-      (options.quests ?? questRows).map((r) => ({ ...r })),
+      rowsOf(options.quests, questRows),
     ],
   ]);
   const requests: string[] = [];
@@ -174,7 +186,15 @@ export function createStubClient(options: StubOptions = {}): Stub {
       if (listMode === "pending") return never();
       if (listMode === "error")
         return json(500, { title: "boom", status: 500 });
-      return json(200, listPage(url.searchParams, rows));
+      return json(200, listPage(
+          options.listDrafts === true
+            ? new URLSearchParams([
+                ...url.searchParams,
+                ["include_unpublished", "true"],
+              ])
+            : url.searchParams,
+          rows,
+        ));
     }
     if (request.method === "POST") {
       const created = {

@@ -214,7 +214,7 @@ describe("ArchiveButton", () => {
       <Ready>
         {(ready) => <ArchiveButton ready={ready} id={1} onDone={onDone} />}
       </Ready>,
-      { heroes },
+      { heroes, softDelete: true },
     );
     await userEvent.click(
       await screen.findByRole("button", { name: "Archive" }),
@@ -233,7 +233,7 @@ describe("ArchiveButton", () => {
   it("restores without a callback, closes on Escape and shows errors", async () => {
     renderCrud(
       <Ready>{(ready) => <ArchiveButton ready={ready} id={1} />}</Ready>,
-      { heroes },
+      { heroes, softDelete: true },
     );
     await userEvent.click(
       await screen.findByRole("button", { name: "Archive" }),

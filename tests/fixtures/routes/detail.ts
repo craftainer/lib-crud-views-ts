@@ -16,7 +16,6 @@ const RESERVED = new Set([
   "include_archived",
   "include_unpublished",
 ]);
-const LIST_PARAMS = new Set(["skip", "limit", "sort"]);
 
 const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), {

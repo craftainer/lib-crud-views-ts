@@ -1,5 +1,6 @@
-// Entry point `.`. Each view area (list, form, detail, stats) appends one
-// `export * from "./bulk/index.ts";
+// Entry point `.`. One `export * from "./<area>/index.ts";` line per view area,
+// sorted.
+export * from "./bulk/index.ts";
 export * from "./core/index.ts";
 export * from "./delete/index.ts";
 export * from "./detail/index.ts";

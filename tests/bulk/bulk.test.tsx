@@ -13,7 +13,8 @@ import {
   useBulkSelection,
   type BulkSelection,
 } from "../../src/bulk/index.ts";
-import { lifecycleHeroes, manyHeroes } from "../fixtures/routes/detail.ts";
+import { lifecycleHeroes } from "../fixtures/routes/detail.ts";
+import { manyHeroes } from "../fixtures/routes/list.ts";
 import { field, renderCrud } from "../helpers.tsx";
 import { Ready } from "../ready.tsx";
 import { failedQuery, pendingQuery, withHooks } from "../hooks.ts";
@@ -106,7 +107,7 @@ const selectionOf = (over: Partial<BulkSelection>): BulkSelection => ({
 
 describe("BulkRecords", () => {
   it("shows no toolbar until something is ticked, then counts", async () => {
-    renderCrud(<BulkRecords resource="heroes" />, { heroes: fresh() });
+    renderCrud(<BulkRecords resource="heroes" />, { heroes: fresh(), listDrafts: true });
     await screen.findByText("Captain Ledger");
     expect(screen.queryByText(/ selected$/)).toBeNull();
     await userEvent.click(
@@ -125,6 +126,7 @@ describe("BulkRecords", () => {
   it("ticks a whole page through the header checkbox", async () => {
     renderCrud(<BulkRecords resource="heroes" columns={["name"]} />, {
       heroes: fresh(),
+      listDrafts: true,
     });
     const all = await screen.findByRole("checkbox", {
       name: "Select all on this page",
@@ -134,7 +136,7 @@ describe("BulkRecords", () => {
     );
     expect(all).toHaveProperty("indeterminate", true);
     await userEvent.click(all);
-    expect(screen.getByText("3 selected")).toBeInTheDocument();
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
     await userEvent.click(all);
     expect(screen.queryByText(/ selected$/)).toBeNull();
   });
@@ -143,7 +145,7 @@ describe("BulkRecords", () => {
     const onDone = vi.fn();
     const { stub } = renderCrud(
       <BulkRecords resource="heroes" onDone={onDone} />,
-      { heroes: fresh() },
+      { heroes: fresh(), listDrafts: true },
     );
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select record 1" }),
@@ -168,7 +170,7 @@ describe("BulkRecords", () => {
   });
 
   it("says record when one is deleted", async () => {
-    renderCrud(<BulkRecords resource="heroes" />, { heroes: fresh() });
+    renderCrud(<BulkRecords resource="heroes" />, { heroes: fresh(), listDrafts: true });
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select record 1" }),
     );
@@ -186,7 +188,7 @@ describe("BulkRecords", () => {
         resource="heroes"
         filters={{ name: { icontains: "captain" } }}
       />,
-      { heroes: fresh() },
+      { heroes: fresh(), listDrafts: true },
     );
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select record 1" }),
@@ -237,7 +239,7 @@ describe("BulkRecords", () => {
     const onExport = vi.fn();
     const { stub } = renderCrud(
       <BulkRecords resource="heroes" onExport={onExport} />,
-      { heroes: fresh() },
+      { heroes: fresh(), listDrafts: true },
     );
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select record 2" }),
@@ -266,7 +268,7 @@ describe("BulkRecords", () => {
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => {});
-    renderCrud(<BulkRecords resource="heroes" />, { heroes: fresh() });
+    renderCrud(<BulkRecords resource="heroes" />, { heroes: fresh(), listDrafts: true });
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select record 1" }),
     );
@@ -283,7 +285,7 @@ describe("BulkRecords", () => {
         filters={{ name: { icontains: "e" } }}
         onExport={onExport}
       />,
-      { heroes: fresh() },
+      { heroes: fresh(), listDrafts: true },
     );
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select record 1" }),
@@ -319,7 +321,7 @@ describe("BulkRecords", () => {
     const onDone = vi.fn();
     const { stub } = renderCrud(
       <BulkRecords resource="heroes" onDone={onDone} />,
-      { heroes: fresh() },
+      { heroes: fresh(), listDrafts: true },
     );
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select record 1" }),
@@ -336,7 +338,7 @@ describe("BulkRecords", () => {
 
   it("publishes several drafts", async () => {
     const heroes = fresh().map((row) => ({ ...row, is_draft: true }));
-    renderCrud(<BulkRecords resource="heroes" />, { heroes });
+    renderCrud(<BulkRecords resource="heroes" />, { heroes, listDrafts: true });
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select all on this page" }),
     );
@@ -347,6 +349,7 @@ describe("BulkRecords", () => {
   it("offers only the actions asked for and only those the manifest allows", async () => {
     renderCrud(<BulkRecords resource="heroes" actions={["export"]} />, {
       heroes: fresh(),
+      listDrafts: true,
     });
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select record 1" }),
@@ -374,7 +377,7 @@ describe("BulkRecords", () => {
         resource="heroes"
         renderers={{ "heroes.name": { display: Shout as never } }}
       />,
-      { heroes: fresh() },
+      { heroes: fresh(), listDrafts: true },
     );
     expect(await screen.findByText("!Captain Ledger")).toBeInTheDocument();
   });
