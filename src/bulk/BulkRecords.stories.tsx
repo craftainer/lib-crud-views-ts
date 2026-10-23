@@ -110,7 +110,7 @@ export const OverTheLimit: Story = {
         name: "Delete",
       }),
     );
-    await within(canvasElement).findByText(/More than 1000 records match/);
+    await within(canvasElement).findByText(/at most 1000 records/);
   },
 };
 

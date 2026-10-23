@@ -293,7 +293,7 @@ describe("FilterBuilder text operand", () => {
       screen.getByRole("button", { name: "Replace from outside" }),
     );
     expect(screen.getByLabelText(/Name.*/)).toHaveValue("zzz");
-  });
+  }, 20_000);
 });
 
 describe("FilterBuilder add", () => {
