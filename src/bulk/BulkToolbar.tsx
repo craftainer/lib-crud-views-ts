@@ -90,6 +90,10 @@ export function BulkToolbar({
     setNotice(null);
     try {
       if (!selection.allMatching && count > max) throw new BulkLimitError(max);
+      // "All matching" with the filters gone would mean every record.
+      if (selection.allMatching && !hasFilters) {
+        throw new Error("The filter was cleared. Select the records again.");
+      }
       const touched = await work();
       if (changes) {
         await invalidate();

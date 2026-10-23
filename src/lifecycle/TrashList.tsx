@@ -46,10 +46,17 @@ function TrashBody({
   // `archived_at` is no filter field, so the archived rows are picked out of
   // every page: with `includeArchived` alone they share pages with live rows.
   const list = useQuery({
-    queryKey: ["crud", ready.resource.name, "trash"],
+    queryKey: [
+      "crud",
+      `${ready.resource.name}@${ready.resource.api_version}`,
+      "trash",
+    ],
     queryFn: async (): Promise<JsonObject[]> => {
       const rows: JsonObject[] = [];
-      for await (const row of ready.handle.iterAll({ includeArchived: true })) {
+      for await (const row of ready.handle.iterAll({
+        includeArchived: true,
+        includeUnpublished: true,
+      })) {
         if (typeof row["archived_at"] === "string") rows.push(row);
       }
       return rows;

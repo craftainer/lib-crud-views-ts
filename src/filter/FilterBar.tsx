@@ -33,7 +33,9 @@ export function FilterBar({
           const field = ready.field(name);
           return field !== undefined && isFilterable(field) ? [field] : [];
         });
-  const active = Object.values(filters).some((f) => f !== undefined);
+  const active = Object.values(filters).some(
+    (f) => f !== undefined && Object.keys(f).length > 0,
+  );
   return (
     <Stack
       component="section"

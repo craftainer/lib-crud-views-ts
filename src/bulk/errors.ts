@@ -19,6 +19,6 @@ function limitMessage(max: number): string {
  */
 export function describeBulkError(error: Error, max: number): string {
   return error instanceof BadRequest
-    ? `${error.message}. A bulk call touches at most ${max} records: narrow the filter or select fewer records.`
+    ? `${error.message.replace(/[.\s]+$/, "")}. A bulk call touches at most ${max} records; if the filter matches more, narrow it.`
     : error.message;
 }

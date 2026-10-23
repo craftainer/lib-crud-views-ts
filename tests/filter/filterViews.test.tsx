@@ -255,6 +255,47 @@ describe("FilterBuilder", () => {
   });
 });
 
+describe("FilterBar active state", () => {
+  it("does not count a field with no operands as filtering", async () => {
+    renderReady((ready) => (
+      <FilterBar ready={ready} filters={{ name: {} }} onChange={() => {}} />
+    ));
+    await screen.findByRole("region", { name: "Filters" });
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+  });
+});
+
+describe("FilterBuilder text operand", () => {
+  it("follows filters changed from outside", async () => {
+    const user = userEvent.setup();
+    renderReady((ready) => (
+      <FiltersHarness onChange={() => {}}>
+        {(filters, set) => (
+          <>
+            <FilterBuilder ready={ready} filters={filters} onChange={set} />
+            <button
+              type="button"
+              onClick={() => set({ name: { regex: "zzz" } })}
+            >
+              Replace from outside
+            </button>
+          </>
+        )}
+      </FiltersHarness>
+    ));
+    await user.click(
+      await screen.findByRole("button", { name: "Add condition" }),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Operator" }));
+    await user.click(screen.getByRole("option", { name: "matches pattern" }));
+    await user.type(screen.getByLabelText(/Name.*/), "abc");
+    await user.click(
+      screen.getByRole("button", { name: "Replace from outside" }),
+    );
+    expect(screen.getByLabelText(/Name.*/)).toHaveValue("zzz");
+  });
+});
+
 describe("FilterBuilder add", () => {
   it("reuses the first field when all are in use and does nothing without fields", async () => {
     const user = userEvent.setup();
@@ -274,10 +315,19 @@ describe("FilterBuilder add", () => {
     const adds = await screen.findAllByRole("button", {
       name: "Add condition",
     });
-    for (let i = 0; i < 4; i++) await user.click(adds[0]!);
-    expect(screen.getAllByRole("group", { name: /Condition/ })).toHaveLength(4);
+    for (let i = 0; i < 6; i++) await user.click(adds[0]!);
+    // One condition per field and operator: a twin of an existing one is not queued.
+    const groups = screen.getAllByRole("group", { name: /Condition/ }).length;
+    expect(groups).toBeGreaterThan(0);
+    expect(groups).toBeLessThan(6);
+    await user.click(adds[0]!);
+    expect(screen.getAllByRole("group", { name: /Condition/ })).toHaveLength(
+      groups,
+    );
     await user.click(adds[1]!);
-    expect(screen.getAllByRole("group", { name: /Condition/ })).toHaveLength(4);
+    expect(screen.getAllByRole("group", { name: /Condition/ })).toHaveLength(
+      groups,
+    );
   });
 });
 

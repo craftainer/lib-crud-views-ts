@@ -209,7 +209,9 @@ function FormController({
       (name) => errorOf(name) !== undefined || invalid[name] !== undefined,
     ).length;
 
+  const edits = useRef(0);
   const setValue = (name: string, value: FieldValue): void => {
+    edits.current += 1;
     setValues((prev) => ({ ...prev, [name]: value }));
     setServerErrors(({ [name]: _removed, ...rest }) => rest);
     setMessage(null);
@@ -263,13 +265,15 @@ function FormController({
           props.etag === undefined
             ? undefined
             : await props.etag(id as number);
+        const seen = edits.current;
         const saved = await update.mutateAsync({
           id: id as number,
           patch: patch as JsonObject,
           ...(ifMatch === undefined ? {} : { ifMatch }),
         });
         setBaseline(saved as Row);
-        setStatus("saved");
+        // Edits made while the request ran are not saved yet.
+        setStatus(edits.current === seen ? "saved" : "idle");
         props.onSaved?.(saved);
       }
     } catch (error) {

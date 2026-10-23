@@ -158,6 +158,18 @@ describe("create", () => {
 });
 
 describe("edit", () => {
+  it("does not call edits made during a save saved", async () => {
+    const heroes = fresh();
+    renderCrud(<ResourceForm name="heroes" id={1} />, { heroes });
+    const name = await screen.findByDisplayValue("Captain Ledger");
+    fireEvent.change(name, { target: { value: "Captain A" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.change(name, { target: { value: "Captain AB" } });
+    await waitFor(() => expect(heroes[0]?.["name"]).toBe("Captain A"));
+    expect(screen.queryByText("Saved")).toBeNull();
+    expect(screen.getByDisplayValue("Captain AB")).toBeInTheDocument();
+  });
+
   it("loads the other record when the id changes", async () => {
     const heroes = fresh();
     const view = renderCrud(<ResourceForm name="heroes" id={1} />, { heroes });

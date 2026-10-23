@@ -100,7 +100,7 @@ describe("describeBulkError", () => {
   it("explains the limit for a 400 and passes other errors through", () => {
     const bad = new BadRequest({ status: 400, title: "Bad Request" });
     expect(describeBulkError(bad, 1000)).toBe(
-      "400 Bad Request. A bulk call touches at most 1000 records: narrow the filter or select fewer records.",
+      "400 Bad Request. A bulk call touches at most 1000 records; if the filter matches more, narrow it.",
     );
     expect(describeBulkError(new Error("down"), 1000)).toBe("down");
     expect(new BulkLimitError(5).message).toMatch(/More than 5/);
@@ -368,6 +368,22 @@ describe("BulkRecords", () => {
     expect(await screen.findByText("Published 2 records.")).toBeInTheDocument();
   });
 
+  it("drops the selection when the filters change", async () => {
+    const view = renderCrud(
+      <BulkRecords
+        resource="heroes"
+        filters={{ name: { icontains: "captain" } }}
+      />,
+      { heroes: fresh() },
+    );
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: "Select record 1" }),
+    );
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
+    view.rerender(<BulkRecords resource="heroes" />);
+    await waitFor(() => expect(screen.queryByText(/ selected$/)).toBeNull());
+  });
+
   it("refreshes after a publish that fails part way", async () => {
     const heroes = fresh().map((row) => ({ ...row, is_draft: true }));
     const view = renderCrud(
@@ -465,13 +481,14 @@ describe("BulkToolbar", () => {
     expect(stub.requests.some((r) => r.startsWith("DELETE"))).toBe(false);
   });
 
-  it("shows other failures as they are", async () => {
-    renderCrud(
+  it("refuses an all-matching call once the filters are gone", async () => {
+    const { stub } = renderCrud(
       <Ready>
         {(ready) => (
           <BulkToolbar
             ready={ready}
             selection={selectionOf({ allMatching: true })}
+            filters={{}}
           />
         )}
       </Ready>,
@@ -481,7 +498,39 @@ describe("BulkToolbar", () => {
     );
     await userEvent.click(within_dialog_button("Delete"));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "a bulk operation needs at least one filter",
+      "The filter was cleared",
+    );
+    expect(stub.requests.some((r) => r.startsWith("DELETE"))).toBe(false);
+  });
+
+  it("shows other failures as they are", async () => {
+    renderCrud(
+      <Ready>
+        {(ready) => {
+          const handle = new Proxy(ready.handle, {
+            get: (target, key) => {
+              if (key === "deleteMany") {
+                return () => Promise.reject(new Error("the server is down"));
+              }
+              const value = Reflect.get(target, key, target) as unknown;
+              return typeof value === "function" ? value.bind(target) : value;
+            },
+          });
+          return (
+            <BulkToolbar
+              ready={{ ...ready, handle }}
+              selection={selectionOf({ selected: [1] })}
+            />
+          );
+        }}
+      </Ready>,
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Delete" }),
+    );
+    await userEvent.click(within_dialog_button("Delete"));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "the server is down",
     );
   });
 });

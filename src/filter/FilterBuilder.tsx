@@ -75,7 +75,29 @@ function Operand({ field, op, ...rest }: OperandProps): ReactElement {
   if (RENDERED[field.kind]?.includes(op) === true) {
     return <FilterControl field={{ ...field, filterOps: [op] }} {...rest} />;
   }
-  const operand = rest.value?.[op];
+  return <TextOperand field={field} op={op} {...rest} />;
+}
+
+const textOf = (operand: FieldFilter[FilterOp] | undefined): string =>
+  operand === undefined ? "" : formatOperand(operand);
+
+/** The text box of a condition. It keeps what was typed while that does not parse yet, and follows filters changed from outside (Clear all, Back). */
+function TextOperand({
+  field,
+  op,
+  value,
+  onChange,
+}: OperandProps): ReactElement {
+  const operand = value?.[op];
+  const [text, setText] = useState(textOf(operand));
+  const [seen, setSeen] = useState(operand);
+  if (operand !== seen) {
+    setSeen(operand);
+    // Typed text that already means this operand stays as typed.
+    if (textOf(parseOperand(field, op, text)) !== textOf(operand)) {
+      setText(textOf(operand));
+    }
+  }
   return (
     <TextField
       size="small"
@@ -88,13 +110,11 @@ function Operand({ field, op, ...rest }: OperandProps): ReactElement {
             : "Comma-separated"
           : undefined
       }
-      // Keep what the user typed while it does not parse yet.
-      defaultValue={operand === undefined ? "" : formatOperand(operand)}
-      onChange={(e) =>
-        rest.onChange(
-          withOp(rest.value, op, parseOperand(field, op, e.target.value)),
-        )
-      }
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange(withOp(value, op, parseOperand(field, op, e.target.value)));
+      }}
     />
   );
 }
@@ -143,6 +163,12 @@ export function FilterBuilder({
       filterable.find((f) => !rows.some((c) => c.field === f.name)) ??
       filterable[0];
     if (field === undefined) return;
+    const op = field.filterOps[0] as FilterOp;
+    // Every field has a condition already: do not queue a twin of one.
+    if (
+      [...rows, ...pending].some((c) => c.field === field.name && c.op === op)
+    )
+      return;
     setPending([
       ...pending,
       { field: field.name, op: field.filterOps[0] as FilterOp },

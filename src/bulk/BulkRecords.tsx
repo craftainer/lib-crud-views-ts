@@ -9,7 +9,7 @@ import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import {
   FieldDisplay,
   ResourceGate,
@@ -46,6 +46,13 @@ export function BulkPanel({
   ...toolbar
 }: BulkPanelProps): ReactElement {
   const selection = useBulkSelection();
+  // A selection made under other filters no longer describes what is listed.
+  const filterKey = JSON.stringify(filters ?? {});
+  const [seenFilters, setSeenFilters] = useState(filterKey);
+  if (seenFilters !== filterKey) {
+    setSeenFilters(filterKey);
+    selection.clear();
+  }
   const list = ready.hooks.useList({
     filters: toQueryFilters(filters ?? {}),
     limit,

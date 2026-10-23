@@ -71,6 +71,14 @@ describe("TrashList", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/boom/);
   });
 
+  it("lists an archived draft too", async () => {
+    const heroes = fresh().map((row) =>
+      row["id"] === 3 ? { ...row, is_draft: true } : row,
+    );
+    renderCrud(<TrashList resource="heroes" />, { heroes });
+    expect(await screen.findByText("Old Stamp")).toBeInTheDocument();
+  });
+
   it("finds archived records on every page", async () => {
     const heroes = manyHeroes(120).map((row, i) =>
       i >= 110
