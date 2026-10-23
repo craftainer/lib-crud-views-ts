@@ -179,14 +179,14 @@ describe("useResource", () => {
   it("exposes the stats, predict and revisions hooks", async () => {
     const { view, queryClient } = await ready();
     for (const useHook of [
-      () => view.hooks.useStats().isError,
-      () => view.hooks.usePredict().isError,
+      () => view.hooks.useStats().isSuccess, // served by tests/fixtures/routes/stats.ts
+      () => view.hooks.usePredict().isSuccess,
       () => view.hooks.useRevisions(1).isError,
     ]) {
       const { result } = renderHook(useHook, {
         wrapper: wrapperFor(queryClient),
       });
-      await waitFor(() => expect(result.current).toBe(true)); // the stub serves no sub-routes
+      await waitFor(() => expect(result.current).toBe(true)); // the stub serves no revisions route
     }
   });
 

@@ -8,9 +8,10 @@ import {
 } from "@craftainer/crud-sdk";
 import manifest from "./manifest.json" with { type: "json" };
 import { deleteRoutes } from "./routes/delete.ts";
+import { detailRoutes } from "./routes/detail.ts";
 import { formRoutes } from "./routes/form.ts";
 import { listPage } from "./routes/list.ts";
-import { detailRoutes } from "./routes/detail.ts";
+import { statsRoute } from "./routes/stats.ts";
 
 export const stubManifest = manifest;
 
@@ -80,6 +81,7 @@ const routes: readonly StubRoute[] = [
   formRoutes,
   deleteRoutes,
   detailRoutes,
+  ({ url }) => statsRoute(url),
 ];
 
 export interface StubOptions {
