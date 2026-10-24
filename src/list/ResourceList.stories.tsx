@@ -66,6 +66,23 @@ export const TableEditable: Story = {
   ),
 };
 
+/** Inline edit with an async `ifMatch`: the ETag is fetched (here after a short delay) before the PATCH. */
+export const TableEditableAsyncIfMatch: Story = {
+  render: () => (
+    <Demo
+      columns={["name", "power_level", "updated_at"]}
+      editable
+      ifMatch={() =>
+        new Promise<string | undefined>((resolve) => {
+          setTimeout(() => resolve(undefined), 300);
+        })
+      }
+      defaults={{ pageSize: 10 }}
+      gridProps={{ disableVirtualization: true }}
+    />
+  ),
+};
+
 /** Card grid with the sort dropdown (no header row to click). */
 export const Cards: Story = {
   render: () => (

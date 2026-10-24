@@ -43,7 +43,10 @@ export interface ResourceListProps {
   readonly titleField?: string | undefined;
   /** Table only: edit cells in place. */
   readonly editable?: boolean | undefined;
-  readonly ifMatch?: ((row: Row) => string | undefined) | undefined;
+  /** Table only: a row's ETag for inline edits; may be async. See `DataTableListProps.ifMatch`. */
+  readonly ifMatch?:
+    | ((row: Row) => string | undefined | Promise<string | undefined>)
+    | undefined;
   readonly sortableOnly?: boolean | undefined;
   /** Show the sort dropdown. Default: for the card variants, which have no header to click. */
   readonly sortDropdown?: boolean | undefined;

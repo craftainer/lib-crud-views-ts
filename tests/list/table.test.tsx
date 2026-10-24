@@ -275,6 +275,75 @@ describe("inline editing", () => {
     expect(stub.requests.some((r) => r.startsWith("PATCH"))).toBe(true);
   });
 
+  it("awaits an async ifMatch before the PATCH, once, while saving", async () => {
+    const user = userEvent.setup();
+    let release: (tag: string | undefined) => void = () => undefined;
+    const ifMatch = vi.fn(
+      () =>
+        new Promise<string | undefined>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const { stub } = renderCrud(
+      <ResourceList
+        resource="heroes"
+        urlAdapter={memoryUrlAdapter()}
+        gridProps={grid}
+        columns={["id", "name"]}
+        editable
+        ifMatch={ifMatch}
+      />,
+    );
+    await edit(user, "Captain Ledger", "Captain Index");
+    await waitFor(() => expect(ifMatch).toHaveBeenCalledTimes(1));
+    expect(document.querySelector("[aria-busy=true]")).not.toBeNull();
+    // A second commit while the ETag is pending does nothing.
+    await user.keyboard("{Enter}");
+    expect(stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
+    release(etagOf({ id: 1, updated_at: heroRows[0]!["updated_at"] }));
+    await screen.findByText("Captain Index");
+    expect(stub.requests.filter((r) => r.startsWith("PATCH"))).toHaveLength(1);
+    expect(ifMatch).toHaveBeenCalledTimes(1);
+    expect(document.querySelector("[aria-busy=true]")).toBeNull();
+  });
+
+  it("sends the PATCH without If-Match when an async ifMatch gives undefined", async () => {
+    const user = userEvent.setup();
+    const { stub } = renderCrud(
+      <ResourceList
+        resource="heroes"
+        urlAdapter={memoryUrlAdapter()}
+        gridProps={grid}
+        columns={["id", "name"]}
+        editable
+        ifMatch={() => Promise.resolve(undefined)}
+      />,
+    );
+    await edit(user, "Captain Ledger", "Captain Index");
+    await screen.findByText("Captain Index");
+    expect(stub.requests.filter((r) => r.startsWith("PATCH"))).toHaveLength(1);
+  });
+
+  it("does not send the edit when an async ifMatch rejects, and says so", async () => {
+    const user = userEvent.setup();
+    const { stub } = renderCrud(
+      <ResourceList
+        resource="heroes"
+        urlAdapter={memoryUrlAdapter()}
+        gridProps={grid}
+        columns={["id", "name"]}
+        editable
+        ifMatch={() => Promise.reject(new Error("etag lookup failed"))}
+      />,
+    );
+    await edit(user, "Captain Ledger", "Captain Index");
+    expect(
+      await screen.findByText("Could not save: etag lookup failed"),
+    ).toBeInTheDocument();
+    expect(stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
+    expect(document.querySelector("[aria-busy=true]")).toBeNull();
+  });
+
   it("explains a stale edit (412) and reloads", async () => {
     const user = userEvent.setup();
     const { stub } = renderCrud(
