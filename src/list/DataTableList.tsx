@@ -47,9 +47,14 @@ export interface DataTableListProps {
    * The ETag of a row, sent as `If-Match` on an inline edit (a stale one fails
    * with 412 and the view reloads the row). The list endpoint returns no ETags,
    * so the app supplies them (for example from its SDK cache); without this
-   * prop the edit is unconditional.
+   * prop the edit is unconditional. May return a promise (same shape as
+   * `ResourceFormProps.etag`): the edit waits for it, stays in a saving state
+   * meanwhile, and is not sent if it rejects (the error is shown like any save
+   * error). `undefined` sends the PATCH without `If-Match`.
    */
-  readonly ifMatch?: ((row: Row) => string | undefined) | undefined;
+  readonly ifMatch?:
+    | ((row: Row) => string | undefined | Promise<string | undefined>)
+    | undefined;
   readonly pageSizeOptions?: readonly number[] | undefined;
   readonly onRowClick?: ((row: Row) => void) | undefined;
   readonly renderers?: RendererOverrides | undefined;
@@ -117,6 +122,8 @@ export function DataTableList({
   const update = ready.hooks.useUpdate();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
+  // Edits in flight (several rows can save at once).
+  const [saving, setSaving] = useState(0);
   const shown = useMemo(
     () =>
       resolveColumns(ready, columns).filter(
@@ -201,14 +208,19 @@ export function DataTableList({
         patch[field.name] = value;
     }
     if (Object.keys(patch).length === 0) return previous;
-    const tag = ifMatch?.(previous);
-    const saved = await update.mutateAsync({
-      id: previous[idField] as number,
-      patch,
-      ...(tag === undefined ? {} : { ifMatch: tag }),
-    });
-    setNotice(null);
-    return saved as Row;
+    setSaving((n) => n + 1);
+    try {
+      const tag = await ifMatch?.(previous);
+      const saved = await update.mutateAsync({
+        id: previous[idField] as number,
+        patch,
+        ...(tag === undefined ? {} : { ifMatch: tag }),
+      });
+      setNotice(null);
+      return saved as Row;
+    } finally {
+      setSaving((n) => n - 1);
+    }
   }
 
   function saveFailed(error: unknown): void {
@@ -231,7 +243,7 @@ export function DataTableList({
       />
     );
   return (
-    <Box>
+    <Box aria-busy={saving > 0}>
       {configurableColumns && (
         <ColumnsMenu columns={shown} hidden={hidden} onChange={setHidden} />
       )}
