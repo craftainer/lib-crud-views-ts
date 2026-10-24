@@ -57,18 +57,21 @@ const client = createClient({ baseUrl: "https://api.example.com" });
 The list endpoint returns no ETags, so the table's inline edit takes
 `ifMatch(row)` from the app. It may return a string, `undefined` (the PATCH
 goes without `If-Match`) or a promise of either, the same shape as
-`ResourceForm`'s `etag`:
+`ResourceForm`'s `etag`. `fetchEtagById` stands for the app's own lookup, for
+example fetching the row through the SDK and reading its cached ETag:
 
 ```tsx
 <ResourceList
   resource="heroes"
   editable
-  ifMatch={async (row) => cache.cachedEtag(/* fetch the row by id */)}
+  ifMatch={async (row) =>
+    (await fetchEtagById(row["id"] as number)) ?? undefined
+  }
 />
 ```
 
-The edit waits for the promise and stays in a saving state (the table is
-`aria-busy`); a rejection sends nothing and shows "Could not save: ..." like
+The edit waits for the promise and stays in a saving state (the cell stays
+in edit mode and the table is `aria-busy`); a rejection sends nothing and shows "Could not save: ..." like
 any other save error.
 
 ## Development

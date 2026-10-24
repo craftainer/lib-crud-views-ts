@@ -122,7 +122,8 @@ export function DataTableList({
   const update = ready.hooks.useUpdate();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  // Edits in flight (several rows can save at once).
+  const [saving, setSaving] = useState(0);
   const shown = useMemo(
     () =>
       resolveColumns(ready, columns).filter(
@@ -207,7 +208,7 @@ export function DataTableList({
         patch[field.name] = value;
     }
     if (Object.keys(patch).length === 0) return previous;
-    setSaving(true);
+    setSaving((n) => n + 1);
     try {
       const tag = await ifMatch?.(previous);
       const saved = await update.mutateAsync({
@@ -218,7 +219,7 @@ export function DataTableList({
       setNotice(null);
       return saved as Row;
     } finally {
-      setSaving(false);
+      setSaving((n) => n - 1);
     }
   }
 
@@ -242,7 +243,7 @@ export function DataTableList({
       />
     );
   return (
-    <Box aria-busy={saving}>
+    <Box aria-busy={saving > 0}>
       {configurableColumns && (
         <ColumnsMenu columns={shown} hidden={hidden} onChange={setHidden} />
       )}
@@ -261,7 +262,7 @@ export function DataTableList({
         rows={rows}
         columns={gridColumns}
         getRowId={(row: Row) => row[idField] as number}
-        loading={list.isFetching || saving}
+        loading={list.isFetching}
         columnVisibilityModel={visibility}
         paginationMode="server"
         sortingMode="server"
