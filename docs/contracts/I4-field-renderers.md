@@ -108,7 +108,7 @@ Three roles, each a React component, wire values in and out:
   `enum`, `date` (`YYYY-MM-DD`) and `datetime` (ISO-8601 UTC); numbers;
   booleans; arrays; objects. A cleared input emits `null` when the field is
   `nullable`, else `undefined` (leave the member out of the request).
-  `emptyValue(field)` gives that value. `datetime` inputs are read as UTC.
+  `emptyValue(field)` gives that value. `datetime` inputs are read as UTC. A `datetime` value without a zone designator (the server stores naive UTC) is read as UTC, and a trailing RFC 9557 `[UTC]` suffix is ignored.
 - **Filters** are per-field `FieldFilter`: operator -> operand
   (`{ min: 3, max: 9 }`, `{ icontains: "ada" }`, `{ in: ["a", "b"] }`).
   `datetime` operands are `Date`s and `date` operands `YYYY-MM-DD` strings,

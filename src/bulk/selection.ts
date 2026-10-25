@@ -9,7 +9,9 @@ export interface BulkSelection {
   isSelected(id: number): boolean;
   /**
    * Ticks or unticks one record. Passing the visible page's ids lets an
-   * untick while `allMatching` keep the other visible records selected.
+   * untick while `allMatching` keep the other visible records selected;
+   * without them the other matching records cannot be named, so the
+   * selection is emptied.
    */
   toggle(id: number, visible?: readonly number[]): void;
   /** Ticks or unticks every id of the visible page. */

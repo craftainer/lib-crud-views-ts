@@ -3,6 +3,7 @@
 // JSON, so every member is read defensively and an unexpected shape degrades
 // to an empty value instead of throwing inside a render.
 import type { JsonObject } from "@craftainer/crud-sdk";
+import { parseInstant } from "../core/values.ts";
 
 /** The time buckets the server aggregates by. */
 export type Bucket = "day" | "week" | "month";
@@ -60,17 +61,6 @@ const numOrNull = (value: unknown): number | null =>
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : String(value ?? "");
-
-/**
- * Parses a bucket start. The server's buckets are UTC; a value without a zone
- * designator is read as UTC rather than as the browser's local time.
- */
-export function parseInstant(value: unknown): Date | null {
-  if (typeof value !== "string") return null;
-  const zoned = /(?:[zZ]|[+-]\d{2}(?::?\d{2})?)$/.test(value);
-  const date = new Date(zoned ? value : `${value}Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
 
 function points(rows: readonly JsonObject[], valueKey: string): SeriesPoint[] {
   const result: SeriesPoint[] = [];

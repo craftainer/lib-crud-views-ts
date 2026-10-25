@@ -440,6 +440,22 @@ describe("PredictionChart", () => {
     );
   });
 
+  it("names every underscore of the method in the caption", async () => {
+    renderWith(<PredictionChart resource="heroes" />, (url) =>
+      url.pathname.endsWith("/predict")
+        ? json({
+            field: null,
+            bucket: "day",
+            method: "naive_linear_trend_fit",
+            predictions: [{ bucket_start: "2026-01-19T00:00:00Z", value: 4 }],
+          })
+        : undefined,
+    );
+    expect(
+      await screen.findByText(/forecast by naive linear trend fit over/),
+    ).toBeVisible();
+  });
+
   it("charts a field forecast without history", async () => {
     const { stub } = renderCrud(
       <PredictionChart resource="heroes" field="power_level" bucket="week" />,

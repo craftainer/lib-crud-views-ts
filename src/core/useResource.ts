@@ -98,7 +98,8 @@ export type UseResourceResult<
 
 const clientIds = new WeakMap<CrudClient, number>();
 let nextClientId = 0;
-function clientId(client: CrudClient): number {
+/** A process-unique number for `client`, for query keys that must not mix clients. */
+export function clientId(client: CrudClient): number {
   let id = clientIds.get(client);
   if (id === undefined) {
     id = nextClientId++;

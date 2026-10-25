@@ -32,7 +32,7 @@ function Plot({
   return (
     <ChartFigure
       title={`${ready.resource.title}: ${what.toLowerCase()} per ${prediction.bucket} with forecast`}
-      caption={`Dashed: ${prediction.predictions.length} ${prediction.bucket} buckets forecast by ${prediction.method.replace("_", " ")} over the bucket sequence; buckets are UTC.`}
+      caption={`Dashed: ${prediction.predictions.length} ${prediction.bucket} buckets forecast by ${prediction.method.replaceAll("_", " ")} over the bucket sequence; buckets are UTC.`}
     >
       <LineChart
         height={300}

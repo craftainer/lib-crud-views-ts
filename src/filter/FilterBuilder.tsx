@@ -2,6 +2,7 @@ import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import { useState, type ReactElement } from "react";
 import {
   isFilterable,
@@ -177,8 +178,30 @@ export function FilterBuilder({
   return (
     <Stack component="section" aria-label="Filter builder" spacing={2}>
       {rows.map((c, index) => {
-        const field = ready.field(c.field) as FieldDescriptor;
+        const field = filterable.find((f) => f.name === c.field);
         const label = `Condition ${index + 1}`;
+        // The filters still hold it (and the server still gets it), so show it to be removed.
+        if (field === undefined) {
+          return (
+            <Stack
+              key={keyOf(c)}
+              direction="row"
+              role="group"
+              aria-label={label}
+              sx={{ gap: 1, alignItems: "center" }}
+            >
+              <Typography color="text.secondary">
+                {`${c.field} ${OP_LABEL[c.op]} (not filterable here)`}
+              </Typography>
+              <Button
+                aria-label={`Remove ${label.toLowerCase()}`}
+                onClick={() => drop(c)}
+              >
+                Remove
+              </Button>
+            </Stack>
+          );
+        }
         return (
           <Stack
             key={keyOf(c)}

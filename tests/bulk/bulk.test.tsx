@@ -43,6 +43,10 @@ describe("useBulkSelection", () => {
     act(() => result.current.toggle(7, [5, 6, 7]));
     expect(result.current.allMatching).toBe(false);
     expect(result.current.selected).toEqual([5, 6]);
+    // Without the visible ids the other matching records cannot be named.
+    act(() => result.current.selectAllMatching());
+    act(() => result.current.toggle(7));
+    expect(result.current).toMatchObject({ allMatching: false, selected: [] });
     act(() => result.current.selectAllMatching());
     act(() => result.current.selectAllMatching());
     act(() => result.current.clear());

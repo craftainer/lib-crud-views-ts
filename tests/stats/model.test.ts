@@ -3,11 +3,11 @@ import {
   categoricalFields,
   forecastSeries,
   formatBucket,
-  parseInstant,
   parsePrediction,
   parseStats,
   rounded,
 } from "../../src/stats/model.ts";
+import { parseInstant } from "../../src/core/values.ts";
 import { timeAxis } from "../../src/stats/shared.tsx";
 
 const utc = (s: string): Date => new Date(`${s}T00:00:00Z`);
@@ -19,9 +19,15 @@ describe("parseInstant", () => {
     expect(parseInstant("2026-01-05T00:00:00+00:00")?.getTime()).toBe(expected);
     expect(parseInstant("2026-01-05T01:00:00+01:00")?.getTime()).toBe(expected);
     expect(parseInstant("2026-01-05T00:00:00")?.getTime()).toBe(expected);
+    expect(parseInstant("2026-01-05")?.getTime()).toBe(expected);
+    expect(parseInstant("2026-01")?.getTime()).toBe(
+      utc("2026-01-01").getTime(),
+    );
+    expect(parseInstant("2026-01-05T00:00:00Z[UTC]")?.getTime()).toBe(expected);
   });
 
   it("rejects anything else", () => {
+    expect(parseInstant("2026-01-05T00:00[Europe/Paris]")).toBeNull();
     expect(parseInstant(5)).toBeNull();
     expect(parseInstant("not a date")).toBeNull();
   });
