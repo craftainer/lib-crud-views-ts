@@ -102,7 +102,9 @@ function RecordSummary({
   const record = ready.hooks.useRecord(id);
   const shown =
     names === undefined
-      ? ready.fields.filter((f) => f.name !== "id").slice(0, 3)
+      ? ready.fields
+          .filter((f) => f.name !== ready.resource.id_field)
+          .slice(0, 3)
       : ready.fields.filter((f) => names.includes(f.name));
   const row = record.data as Record<string, FieldValue> | undefined;
   return (

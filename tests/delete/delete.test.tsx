@@ -79,6 +79,33 @@ describe("DeleteAction", () => {
     expect(calls(view, "DELETE")).toHaveLength(0);
   });
 
+  it.each([
+    ["owner_id", "Captain Ledger", "Name"],
+    ["name", "1", "Name"],
+  ])(
+    "summarises by the resource's key field %s, not a field named id",
+    async (key, shownValue, hiddenLabel) => {
+      const view = setup({}, {
+        manifestPatch: (m: {
+          resources: { name: string; id_field: string }[];
+        }) => {
+          for (const r of m.resources)
+            if (r.name === "heroes") r.id_field = key;
+        },
+      } as StubOptions);
+      await view.user.click(
+        await screen.findByRole("button", { name: "Delete record 1" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      expect(await within(dialog).findByText(shownValue)).toBeVisible();
+      expect(within(dialog).getByText("Id")).toBeVisible();
+      if (key === "name") {
+        expect(within(dialog).queryByText(hiddenLabel)).toBeNull();
+        expect(within(dialog).queryByText("Captain Ledger")).toBeNull();
+      }
+    },
+  );
+
   it("deletes after the confirmation, with chosen summary fields", async () => {
     const onDeleted = vi.fn();
     const view = setup({ summaryFields: ["power_level"], onDeleted });
