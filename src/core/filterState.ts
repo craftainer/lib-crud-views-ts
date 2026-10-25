@@ -25,6 +25,10 @@ export function withOp(
   return Object.keys(next).length === 0 ? undefined : (next as FieldFilter);
 }
 
-/** Whether the manifest lets a client filter on this field at all. */
+/**
+ * Whether the manifest lets a client filter on this field at all. The
+ * resource's key field (`resource.id_field`) is filterable too; the views that
+ * offer filters leave it out themselves.
+ */
 export const isFilterable = (field: FieldDescriptor): boolean =>
-  field.filterOps.length > 0 && field.name !== "id";
+  field.filterOps.length > 0;

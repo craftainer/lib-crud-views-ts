@@ -45,6 +45,8 @@ export interface QueryDefaults {
 /** What the codecs need to know about the resource. */
 export interface QueryContext {
   readonly fields: readonly FieldDescriptor[];
+  /** The resource's key field (`id_field`): never filtered on, so a URL naming it is ignored. */
+  readonly idField: string;
   readonly defaults: QueryDefaults;
   /** Prefix of every URL parameter, so several lists can share one page. */
   readonly prefix: string;
@@ -258,6 +260,7 @@ export function decodeState(search: string, ctx: QueryContext): QueryState {
       if (
         field === undefined ||
         !isFilterable(field) ||
+        field.name === ctx.idField ||
         !field.filterOps.includes(op)
       )
         continue;

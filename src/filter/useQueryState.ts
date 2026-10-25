@@ -79,6 +79,7 @@ export function useQueryState(
   const ctx = useMemo<QueryContext>(
     () => ({
       fields,
+      idField: ready.resource.id_field,
       defaults,
       prefix,
       searchField,
@@ -86,6 +87,7 @@ export function useQueryState(
     }),
     [
       fields,
+      ready.resource.id_field,
       defaults,
       prefix,
       searchField,

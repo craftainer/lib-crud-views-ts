@@ -131,7 +131,10 @@ export function FilterBuilder({
   onChange,
   renderers,
 }: FilterBuilderProps): ReactElement {
-  const filterable = ready.fields.filter(isFilterable);
+  const keyField = ready.resource.id_field;
+  const filterable = ready.fields.filter(
+    (f) => isFilterable(f) && f.name !== keyField,
+  );
   // Conditions added but not yet given an operand; the rest come from `filters`.
   const [pending, setPending] = useState<readonly Condition[]>([]);
   const present = conditionsOf(filters);
