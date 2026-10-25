@@ -10,7 +10,15 @@ function cell(value: unknown): string {
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-/** RFC 4180 CSV: a header of field names, then one line per record. Objects and arrays become JSON. */
+/**
+ * RFC 4180 CSV: a header of field names, then one line per record. Objects and arrays become JSON.
+ *
+ * A string cell starting with `=`, `+`, `-`, `@`, a tab or a carriage return
+ * gets a leading `'` so spreadsheets do not run it as a formula (see
+ * https://owasp.org/www-community/attacks/CSV_Injection). The prefix is part
+ * of the exported value: the text "-5" exports as `'-5`. Non-string values,
+ * such as the number -5, are not prefixed.
+ */
 export function toCsv(
   fields: readonly FieldDescriptor[],
   rows: readonly JsonObject[],
