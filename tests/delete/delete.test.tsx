@@ -33,6 +33,7 @@ const calls = (view: { stub: { requests: string[] } }, method: string) =>
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("DeleteAction", () => {
@@ -158,6 +159,98 @@ describe("DeleteAction", () => {
     await screen.findByRole("button", { name: "Delete record 1" });
     view.unmount();
     expect(calls(view, "DELETE")).toHaveLength(0);
+  });
+
+  describe("a failed delayed deletion", () => {
+    it("calls onDeleteError when the window has passed", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const onDeleteError = vi.fn();
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      setup({ id: 99, variant: "undo", undoMs: 100, onDeleteError });
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Delete record 99" }),
+      );
+      await act(() => vi.advanceTimersByTimeAsync(150));
+      await waitFor(() => expect(onDeleteError).toHaveBeenCalledOnce());
+      expect(onDeleteError).toHaveBeenCalledWith(99, expect.any(Error));
+      expect(onDeleteError.mock.calls[0]?.[1]).toHaveProperty(
+        "message",
+        "404 Not found",
+      );
+      expect(error).not.toHaveBeenCalled();
+    });
+
+    it("calls it after unmount, where no toast can show the failure", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const onDeleteError = vi.fn();
+      const view = setup({ id: 99, variant: "undo", onDeleteError });
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Delete record 99" }),
+      );
+      view.unmount();
+      await waitFor(() => expect(onDeleteError).toHaveBeenCalledOnce());
+      expect(onDeleteError).toHaveBeenCalledWith(99, expect.any(Error));
+      expect(calls(view, "DELETE")).toEqual([`DELETE ${HEROES}?id=99`]);
+    });
+
+    it("logs with console.error when there is no onDeleteError", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const view = setup({ id: 99, variant: "undo" });
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Delete record 99" }),
+      );
+      view.unmount();
+      await waitFor(() => expect(error).toHaveBeenCalledOnce());
+      expect(error.mock.calls[0]?.[0]).toBe("Could not delete record 99");
+      expect(error.mock.calls[0]?.[1]).toBeInstanceOf(Error);
+    });
+
+    it("logs the failure when onDeleteError itself throws", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const onDeleteError = vi.fn(() => {
+        throw new Error("callback broke");
+      });
+      const view = setup({ id: 99, variant: "undo", onDeleteError });
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Delete record 99" }),
+      );
+      view.unmount();
+      await waitFor(() => expect(error).toHaveBeenCalledTimes(2));
+      expect(error.mock.calls[0]?.[0]).toBe("Could not delete record 99");
+      expect(error.mock.calls[1]?.[0]).toBe("onDeleteError threw");
+    });
+
+    it("wraps a rejection that is not an Error", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const onDeleteError = vi.fn();
+      const view = setup({ variant: "undo", undoMs: 100, onDeleteError });
+      vi.spyOn(view.queryClient.getMutationCache(), "build").mockImplementation(
+        () => {
+          throw "plain";
+        },
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Delete record 1" }),
+      );
+      await act(() => vi.advanceTimersByTimeAsync(150));
+      await waitFor(() => expect(onDeleteError).toHaveBeenCalledOnce());
+      expect(onDeleteError.mock.calls[0]?.[1]).toHaveProperty(
+        "message",
+        "Could not delete",
+      );
+    });
+
+    it("does not call onDeleteError for an immediate delete, which shows the alert", async () => {
+      const onDeleteError = vi.fn();
+      const view = setup({ id: 99, variant: "immediate", onDeleteError });
+      await view.user.click(
+        await screen.findByRole("button", { name: "Delete record 99" }),
+      );
+      await screen.findByRole("alert");
+      expect(onDeleteError).not.toHaveBeenCalled();
+    });
   });
 
   it("reports a failed deletion and lets the alert be closed", async () => {
