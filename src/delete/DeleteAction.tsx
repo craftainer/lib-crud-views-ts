@@ -40,6 +40,13 @@ export interface DeleteActionProps {
   readonly onDeleted?: ((id: number) => void) | undefined;
   /** Called when Undo cancelled a pending deletion or restored the record. */
   readonly onUndone?: ((id: number) => void) | undefined;
+  /**
+   * Called when an `undo` deletion fails once its window has passed, also
+   * when the component has been unmounted by then (the delete is committed on
+   * unmount) and no toast can show it. Without it the failure is logged with
+   * `console.error`.
+   */
+  readonly onDeleteError?: ((id: number, error: Error) => void) | undefined;
   /** `undo`: how long the deletion waits, in milliseconds. Default 6000. */
   readonly undoMs?: number | undefined;
   /** `confirm`: the fields shown. Default the first three besides `id`. */
@@ -138,14 +145,34 @@ function DeleteController({
   const [busy, setBusy] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const run = async (): Promise<boolean> => {
+  // The latest callback, for a delete that settles after a re-render or unmount.
+  const onDeleteError = useRef(props.onDeleteError);
+  useEffect(() => {
+    onDeleteError.current = props.onDeleteError;
+  });
+
+  const run = async (delayed = false): Promise<boolean> => {
     setBusy(true);
     try {
       await remove.mutateAsync(id);
       props.onDeleted?.(id);
       return true;
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not delete");
+      const failed =
+        failure instanceof Error ? failure : new Error("Could not delete");
+      setError(failed.message);
+      // Nobody may be looking after a delayed delete (the user left): never fail silently.
+      if (delayed) {
+        try {
+          if (onDeleteError.current === undefined) throw failed;
+          onDeleteError.current(id, failed);
+        } catch (reported) {
+          // No callback, or it threw: the log is the last place left to say so.
+          console.error(`Could not delete ${label} ${id}`, failed);
+          if (reported !== failed)
+            console.error("onDeleteError threw", reported);
+        }
+      }
       return false;
     } finally {
       setBusy(false);
@@ -165,7 +192,7 @@ function DeleteController({
   );
 
   const undoLater = (): void => {
-    pending.current = run;
+    pending.current = () => run(true);
     setToast({
       text: `Deleting ${label} ${id}…`,
       undo: () => {
@@ -178,7 +205,7 @@ function DeleteController({
     timer.current = setTimeout(() => {
       timer.current = undefined;
       setToast(null);
-      void run();
+      void run(true);
     }, undoMs);
   };
 
