@@ -28,6 +28,7 @@ const ctx = (
   fields = heroes,
 ): QueryContext => ({
   fields,
+  idField: "id",
   defaults,
   prefix,
   searchField: "name",
@@ -218,6 +219,16 @@ describe("URL codec", () => {
     expect(decodeState("page=x&size=0", c).page).toBe(1);
     expect(decodeState("sort=", c).sort).toEqual([]);
     expect(decodeState("size=7", c).pageSize).toBe(7);
+  });
+
+  it("ignores the resource's key field, whatever it is called", () => {
+    const search = "f=&f.id.min=1&f.owner_id.eq=ann";
+    expect(decodeState(search, ctx()).filters).toEqual({
+      owner_id: { eq: "ann" },
+    });
+    expect(
+      decodeState(search, { ...ctx(), idField: "owner_id" }).filters,
+    ).toEqual({ id: { min: 1 } });
   });
 
   it("has no quick-search field on a resource without searchable strings", () => {

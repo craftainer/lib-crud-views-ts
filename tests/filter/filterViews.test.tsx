@@ -8,6 +8,7 @@ import {
   FilterBuilder,
   QuickSearch,
 } from "../../src/filter/index.ts";
+import type { StubOptions } from "../fixtures/stub.ts";
 import { field } from "../helpers.tsx";
 import { FiltersHarness } from "./harness.tsx";
 import { renderReady } from "./renderReady.tsx";
@@ -141,6 +142,58 @@ function render_(
 function rerender_(fields: readonly FieldDescriptor[], value: string) {
   last.rerender(props(fields, value, undefined));
 }
+
+/** Heroes whose key is `owner_id`, so `id` is an ordinary filterable field. */
+const keyedByOwner = {
+  manifestPatch: (m: { resources: { name: string; id_field: string }[] }) => {
+    for (const r of m.resources)
+      if (r.name === "heroes") r.id_field = "owner_id";
+  },
+} as StubOptions;
+
+describe("the key field is left out by the views, not by isFilterable", () => {
+  it("FilterBar hides the manifest's key field and shows a field named id", async () => {
+    renderReady(
+      (ready) => <FilterBar ready={ready} filters={{}} onChange={() => {}} />,
+      { stub: keyedByOwner },
+    );
+    const bar = await screen.findByRole("region", { name: "Filters" });
+    expect(within(bar).getByLabelText("Name")).toBeInTheDocument();
+    expect(within(bar).getByLabelText("Id from")).toBeInTheDocument();
+    expect(within(bar).queryByLabelText("Owner Id")).toBeNull();
+  });
+
+  it("FilterBar drops a named key field", async () => {
+    renderReady(
+      (ready) => (
+        <FilterBar
+          ready={ready}
+          filters={{}}
+          onChange={() => {}}
+          fields={["owner_id", "id"]}
+        />
+      ),
+      { stub: keyedByOwner },
+    );
+    expect(await screen.findByLabelText("Id from")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Owner Id")).toBeNull();
+  });
+
+  it("FilterBuilder offers the same fields", async () => {
+    const user = userEvent.setup();
+    renderReady(
+      (ready) => (
+        <FilterBuilder ready={ready} filters={{}} onChange={() => {}} />
+      ),
+      { stub: keyedByOwner },
+    );
+    await screen.findByRole("region", { name: "Filter builder" });
+    await user.click(screen.getByRole("button", { name: "Add condition" }));
+    await user.click(screen.getByRole("combobox", { name: "Field" }));
+    expect(screen.getByRole("option", { name: "Id" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Owner Id" })).toBeNull();
+  });
+});
 
 describe("FilterBuilder", () => {
   it("adds, edits, re-targets and removes conditions", async () => {

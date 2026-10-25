@@ -13,7 +13,7 @@ export interface FilterBarProps {
   readonly ready: ReadyResource;
   readonly filters: FieldFilters;
   readonly onChange: (filters: FieldFilters) => void;
-  /** Field names to show, in order. Default: every filterable field except the id. */
+  /** Field names to show, in order. Default: every filterable field except the resource's key field. */
   readonly fields?: readonly string[] | undefined;
   readonly renderers?: RendererOverrides | undefined;
 }
@@ -26,12 +26,17 @@ export function FilterBar({
   fields,
   renderers,
 }: FilterBarProps): ReactElement {
+  const keyField = ready.resource.id_field;
   const shown =
     fields === undefined
-      ? ready.fields.filter(isFilterable)
+      ? ready.fields.filter((f) => isFilterable(f) && f.name !== keyField)
       : fields.flatMap((name) => {
           const field = ready.field(name);
-          return field !== undefined && isFilterable(field) ? [field] : [];
+          return field !== undefined &&
+            isFilterable(field) &&
+            field.name !== keyField
+            ? [field]
+            : [];
         });
   const active = Object.values(filters).some(
     (f) => f !== undefined && Object.keys(f).length > 0,

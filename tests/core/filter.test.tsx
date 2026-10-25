@@ -50,10 +50,11 @@ describe("withOp / isFilterable", () => {
     expect(withOp({ in: ["a"], eq: "b" }, "in", [])).toEqual({ eq: "b" });
   });
 
-  it("excludes fields without operators and the id", () => {
+  it("excludes fields without operators, and nothing else", () => {
     expect(isFilterable(field({ filterOps: ["eq"] }))).toBe(true);
     expect(isFilterable(field({ filterOps: [] }))).toBe(false);
-    expect(isFilterable(field({ name: "id", filterOps: ["eq"] }))).toBe(false);
+    // The key field is left out by the views, which know its name, not here.
+    expect(isFilterable(field({ name: "id", filterOps: ["eq"] }))).toBe(true);
   });
 });
 
