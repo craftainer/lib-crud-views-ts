@@ -51,11 +51,11 @@ describe("DataTableList", () => {
     );
     await screen.findByText("Captain Ledger");
     await user.click(screen.getByRole("switch", { name: "Include drafts" }));
-    expect(adapter.read()).toBe("drafts=1");
+    expect(adapter.read()).toBe("l_drafts=1");
     await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(4));
     expect(lastList(v2.stub.requests)).toContain("include_unpublished=true");
     await user.click(screen.getByRole("switch", { name: "Include archived" }));
-    expect(adapter.read()).toContain("archived=1");
+    expect(adapter.read()).toContain("l_archived=1");
     v2.unmount();
 
     renderCrud(
@@ -90,16 +90,16 @@ describe("DataTableList", () => {
     expect(screen.queryByRole("combobox", { name: "Sort by" })).toBeNull();
 
     await user.click(screen.getByRole("columnheader", { name: /Name/ }));
-    await waitFor(() => expect(adapter.read()).toContain("sort=name"));
+    await waitFor(() => expect(adapter.read()).toContain("l_sort=name"));
     expect(lastList(stub.requests)).toContain("sort=name");
     expect(adapter.read()).not.toContain("power_level");
     await user.click(screen.getByRole("columnheader", { name: /Name/ }));
-    await waitFor(() => expect(adapter.read()).toContain("sort=-name"));
+    await waitFor(() => expect(adapter.read()).toContain("l_sort=-name"));
     await user.click(screen.getByRole("columnheader", { name: /Name/ }));
-    await waitFor(() => expect(adapter.read()).toBe("sort="));
+    await waitFor(() => expect(adapter.read()).toBe("l_sort="));
     // `powers` is not sortable: a click changes nothing.
     await user.click(screen.getByRole("columnheader", { name: /Powers/ }));
-    expect(adapter.read()).toBe("sort=");
+    expect(adapter.read()).toBe("l_sort=");
   });
 
   it("can show sortable columns only", async () => {
@@ -136,7 +136,7 @@ describe("DataTableList", () => {
     expect(screen.queryByText("Ember 13")).toBeNull();
     await user.click(screen.getByRole("button", { name: /next page/i }));
     await screen.findByText("Ember 13", {}, { timeout: 8000 });
-    expect(adapter.read()).toBe("page=2");
+    expect(adapter.read()).toBe("l_page=2");
     expect(lastList(stub.requests)).toContain("skip=10");
 
     const footer = document.querySelector<HTMLElement>(
@@ -145,7 +145,7 @@ describe("DataTableList", () => {
     await user.click(footer.querySelector<HTMLElement>("[role=combobox]")!);
     await user.click(screen.getByRole("option", { name: "25" }));
     await screen.findByText("Helix 24", {}, { timeout: 8000 });
-    expect(adapter.read()).toBe("size=25");
+    expect(adapter.read()).toBe("l_size=25");
     expect(screen.getByRole("button", { name: /next page/i })).toBeDisabled();
   }, 20_000);
 

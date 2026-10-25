@@ -52,7 +52,7 @@ export interface ResourceListProps {
   readonly sortDropdown?: boolean | undefined;
   /** Where the state lives. Default: the window's query string. */
   readonly urlAdapter?: UrlAdapter | undefined;
-  /** Prefix of this list's URL parameters. */
+  /** Prefix of this list's URL parameters. Default `l_`; `""` for unprefixed names. */
   readonly prefix?: string | undefined;
   readonly defaults?: QueryDefaults | undefined;
   readonly searchField?: string | undefined;

@@ -195,3 +195,14 @@ form still validates the values it holds.
 `describeFields` resolves local `$ref`s through chains (`A` -> `B` -> schema),
 cycles (left unresolved), JSON-pointer escapes (`~1` for `/`, `~0` for `~`) and
 percent-encoded names (Pydantic's `Page[Hero]` as `Page%5BHero%5D`).
+
+## 8. Addendum (2026-10-25): URL state prefix
+
+`useQueryState` and `ResourceList` keep a list's filter, sort and paging state
+in the query string. Its parameters now carry the prefix `l_` by default:
+`l_page`, `l_sort`, `l_q`, `l_qf`, `l_size`, `l_archived`, `l_drafts`, `l_f`
+and `l_f.<field>.<op>`. Before, the default prefix was empty, so a list read
+and deleted the host app's own `page`, `sort`, `q` and `size`. This is a
+breaking change to the default (the API shape is unchanged). Pass
+`prefix: ""` (or `prefix=""` on `ResourceList`) for the old, unprefixed names;
+an explicit `prefix` is unaffected. Give each list on one page its own prefix.

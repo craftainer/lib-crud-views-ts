@@ -48,7 +48,7 @@ export const TableSortedAndFiltered: Story = {
       columns={columns}
       filters={["quick", "bar"]}
       barFields={["power_level", "created_at"]}
-      search="sort=-power_level&f=&f.power_level.min=40&size=10"
+      search="l_sort=-power_level&l_f=&l_f.power_level.min=40&l_size=10"
       gridProps={{ disableVirtualization: true }}
     />
   ),
@@ -113,7 +113,7 @@ export const AllFilters: Story = {
       columns={["name", "power_level"]}
       filters={["quick", "bar", "builder", "facets"]}
       barFields={["name", "power_level"]}
-      search="f=&f.is_locked.in=true&f.power_level.max=90&f.name.contains=a&size=6"
+      search="l_f=&l_f.is_locked.in=true&l_f.power_level.max=90&l_f.name.contains=a&l_size=6"
     />
   ),
 };

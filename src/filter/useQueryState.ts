@@ -17,10 +17,17 @@ import {
 } from "./queryState.ts";
 import { defaultUrlAdapter, type UrlAdapter } from "./urlAdapter.ts";
 
+const DEFAULT_PREFIX = "l_";
+
 export interface QueryStateOptions {
   /** Where the state lives. Default: the window's query string. */
   readonly adapter?: UrlAdapter | undefined;
-  /** Prefix of this list's URL parameters; give each list on a page its own. */
+  /**
+   * Prefix of this list's URL parameters; give each list on a page its own.
+   * Default `l_` (`l_page`, `l_sort`, `l_q`, `l_size`, ...), so the list never
+   * reads or deletes the host app's own `page`, `sort`, `q` or `size`. Pass
+   * `""` for unprefixed names.
+   */
   readonly prefix?: string | undefined;
   readonly defaults?: QueryDefaults | undefined;
   /** The field the quick search targets first. Default: the first string field with `icontains`. */
@@ -59,7 +66,7 @@ export function useQueryState(
   ready: ReadyResource,
   options: QueryStateOptions = {},
 ): QueryStateApi {
-  const { adapter = defaultUrlAdapter(), prefix = "" } = options;
+  const { adapter = defaultUrlAdapter(), prefix = DEFAULT_PREFIX } = options;
   const fields = ready.fields;
   const searchFields = useMemo(() => searchableFields(fields), [fields]);
   const searchField = options.searchField ?? searchFields[0]?.name;

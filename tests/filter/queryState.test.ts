@@ -163,6 +163,27 @@ describe("URL codec", () => {
     expect(decodeState(both, b).page).toBe(1);
   });
 
+  it("round-trips the host's page, sort, q and size under the default prefix", () => {
+    const host = "page=7&sort=title&q=mine&size=9";
+    const c = ctx({}, "l_");
+    const state = {
+      ...initialState(c),
+      q: "ada",
+      page: 2,
+      pageSize: 25,
+      sort: [{ field: "name", desc: true }],
+    };
+    const text = encodeState(state, c, host);
+    const params = new URLSearchParams(text);
+    for (const [key, value] of new URLSearchParams(host))
+      expect(params.get(key)).toBe(value);
+    expect(decodeState(text, c)).toEqual(state);
+    // Clearing the list's state leaves the host's parameters alone.
+    expect(encodeState(initialState(c), c, text)).toBe(host);
+    // The host's parameters alone are not list state.
+    expect(decodeState(host, c)).toEqual(initialState(c));
+  });
+
   it("ignores what the resource does not allow", () => {
     const c = ctx();
     const state = decodeState(
