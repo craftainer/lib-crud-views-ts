@@ -134,7 +134,9 @@ Three roles, each a React component, wire values in and out:
   state is `FieldFilters` (field name -> `FieldFilter`);
   `toQueryFilters(filters)` turns it into the SDK's flat `Filters`
   (`eq` -> bare name, others -> `field__op`). `isFilterable(field)` says
-  whether to show a filter at all (it has operators and is not `id`);
+  whether the field has filter operators; the views that offer filters
+  (`FilterBar`, `FilterBuilder` and the URL decoder `decodeState`) also drop
+  the resource's key field, `resource.id_field` (`QueryContext.idField`);
   `withOp(current, op, operand)` edits one operator.
 - Renderers must not assume a theme, and must style only through MUI theme
   tokens (`sx`, `theme.vars`); no raw colors or `px` (the design-token lint
