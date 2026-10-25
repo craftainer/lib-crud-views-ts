@@ -114,6 +114,16 @@ versions before the `l_` default used, opt out with `prefix=""`:
 <ResourceList resource="heroes" prefix="" />
 ```
 
+### CSV export
+
+`toCsv` (bulk export) guards against
+[CSV injection](https://owasp.org/www-community/attacks/CSV_Injection): a
+string cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return
+gets a leading `'`, so a spreadsheet does not read it as a formula. The
+prefix is part of the exported value: the text `-5` in a text column exports
+as `'-5`. Numbers are not strings and are never prefixed, so the number `-5`
+exports as `-5`.
+
 ## Development
 
 Open the repository in the devcontainer, then run
