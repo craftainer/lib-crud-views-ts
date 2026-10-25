@@ -8,6 +8,7 @@ const RESERVED = new Set([
   "limit",
   "sort",
   "include_archived",
+  "only_archived",
   "include_unpublished",
 ]);
 
@@ -57,11 +58,14 @@ export function listPage(
   params: URLSearchParams,
   rows: readonly JsonObject[],
 ): JsonObject[] {
+  // `only_archived=true` returns just the archived rows and implies
+  // `include_archived` (the SDK refuses it with `include_archived=false`).
+  const only = params.get("only_archived") === "true";
   let out = rows.filter((row) => {
+    const archived =
+      row["archived_at"] !== null && row["archived_at"] !== undefined;
     if (
-      params.get("include_archived") !== "true" &&
-      row["archived_at"] !== null &&
-      row["archived_at"] !== undefined
+      only ? !archived : archived && params.get("include_archived") !== "true"
     )
       return false;
     if (

@@ -58,21 +58,22 @@ function TrashBody({
   columns,
   onRestored,
 }: TrashPanelProps): ReactElement {
-  // `archived_at` is no filter field, so the archived rows are picked out of
-  // every page: with `includeArchived` alone they share pages with live rows.
-  // The SDK has no key builder for the trash, so this follows its layout
-  // `["crud", client, resource, scope, kind]`: another caller never sees these
-  // rows and invalidating the resource (a key prefix) refreshes them.
+  // The server returns only the archived rows (`onlyArchived`, which implies
+  // `includeArchived`). The SDK has no key builder for the trash, so this
+  // follows its layout `["crud", client, resource, scope, kind]`: another
+  // caller never sees these rows and invalidating the resource (a key prefix)
+  // refreshes them. A resource without an archive ignores `onlyArchived`, but
+  // `TrashPanel` renders nothing for it.
   const { namespace: ns, queryName } = ready;
   const list = useQuery({
     queryKey: ["crud", ns.client, queryName, ns.scope, "trash"],
     queryFn: async (): Promise<JsonObject[]> => {
       const rows: JsonObject[] = [];
       for await (const row of ready.handle.iterAll({
-        includeArchived: true,
+        onlyArchived: true,
         includeUnpublished: true,
       })) {
-        if (typeof row["archived_at"] === "string") rows.push(row);
+        rows.push(row);
       }
       return rows;
     },

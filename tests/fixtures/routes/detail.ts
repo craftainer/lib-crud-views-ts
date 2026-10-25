@@ -14,6 +14,7 @@ const RESERVED = new Set([
   "limit",
   "sort",
   "include_archived",
+  "only_archived",
   "include_unpublished",
 ]);
 

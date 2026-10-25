@@ -20,9 +20,14 @@ describe("TrashList", () => {
     );
     expect(await screen.findByText("Old Stamp")).toBeInTheDocument();
     expect(screen.queryByText("The Margin")).toBeNull();
-    expect(stub.requests.some((r) => r.includes("include_archived=true"))).toBe(
+    // The server picks the archived rows: no client-side filtering, and no
+    // `include_archived=false` to clash with `only_archived`.
+    expect(stub.requests.some((r) => r.includes("only_archived=true"))).toBe(
       true,
     );
+    expect(
+      stub.requests.some((r) => r.includes("include_archived=false")),
+    ).toBe(false);
     await userEvent.click(
       screen.getByRole("button", { name: "Restore record 3" }),
     );
@@ -134,7 +139,7 @@ describe("TrashList", () => {
     const b = createStubClient({ list: "pending" });
     view.rerender(as("b", b));
     await waitFor(() =>
-      expect(b.requests.some((r) => r.includes("include_archived"))).toBe(true),
+      expect(b.requests.some((r) => r.includes("only_archived"))).toBe(true),
     );
     expect(screen.queryByText("Old Stamp")).toBeNull();
     expect(screen.getByLabelText("Loading")).toBeInTheDocument();

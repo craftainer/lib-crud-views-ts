@@ -56,14 +56,17 @@ const client = createClient({ baseUrl: "https://api.example.com" });
 
 Every query is keyed `["crud", client, resource, scope, kind, ...]` (the
 manifest: `["crud", client, "_manifest", scope]`), as in `@craftainer/crud-sdk`
-0.2: `client` is `CrudClient.id` (default: its `baseUrl`) and `scope` the
+0.4: `client` is `CrudClient.id` (default: its `baseUrl`) and `scope` the
 caller, from `client.namespace()` (`"anon"` or a hash of the bearer token).
 Two clients or callers on one `QueryClient` never share an entry. Give two
 clients that share a `baseUrl` distinct `id`s, and remount `CrudProvider` (a
 `key` of the token) when the caller changes. `scope` on `CrudProvider` names
 the caller yourself instead. `useResource` stays pending until the namespace is
 known. The key parts for your own SDK calls are on the ready resource:
-`namespace` and `queryName`.
+`namespace` and `queryName`. `TrashList` has no SDK key builder, so it uses
+`["crud", client, resource, scope, "trash"]` under the same prefix: invalidating
+the resource refreshes it. It needs `@craftainer/crud-sdk` 0.3 or later
+(`onlyArchived`).
 
 ### Inline edit and ETags
 
