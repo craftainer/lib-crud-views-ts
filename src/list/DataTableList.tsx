@@ -168,6 +168,12 @@ export function DataTableList({
   const [previous, setPrevious] = useState(list.data);
   if (list.data !== undefined && list.data !== previous) setPrevious(list.data);
   const data = list.data ?? previous;
+  // The rows are the previous query's while the new page loads: they are not
+  // what the user asked for, so an edit would change a row they cannot see in
+  // this page. Cells are read-only until the real data arrives. (The SDK hooks
+  // set no `placeholderData`, so this view keeps the previous rows itself and
+  // `list.data` is the only signal; `isPlaceholderData` is never true.)
+  const stale = list.data === undefined;
   // Stable while the data and page size are: a new array makes the grid reset its rows (and any open edit).
   const rows = useMemo(
     () => (data ?? []).slice(0, pageSize) as Row[],
@@ -296,6 +302,9 @@ export function DataTableList({
         onProcessRowUpdateError={saveFailed}
         onRowClick={(p) => onRowClick?.(p.row as Row)}
         {...gridProps}
+        isCellEditable={(p) =>
+          !stale && (gridProps?.isCellEditable?.(p) ?? true)
+        }
       />
     </Box>
   );

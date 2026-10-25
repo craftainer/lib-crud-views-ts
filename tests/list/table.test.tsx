@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { memoryUrlAdapter } from "../../src/filter/index.ts";
 import { ResourceList } from "../../src/list/index.ts";
 import { etagOf } from "../fixtures/routes/form.ts";
@@ -208,6 +208,63 @@ describe("DataTableList", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
+});
+
+describe("inline editing while the next page loads", () => {
+  let release: () => void = () => {};
+  // Never leave the held request pending when an assertion fails first.
+  afterEach(() => release());
+
+  const open = async (
+    user: ReturnType<typeof userEvent.setup>,
+    isCellEditable?: () => boolean,
+  ) => {
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const view = renderCrud(
+      <ResourceList
+        resource="heroes"
+        urlAdapter={memoryUrlAdapter()}
+        gridProps={{
+          ...grid,
+          ...(isCellEditable === undefined ? {} : { isCellEditable }),
+        }}
+        columns={["id", "name"]}
+        defaults={{ pageSize: 10 }}
+        editable
+      />,
+      {
+        heroes: manyHeroes(25),
+        listGate: (url) =>
+          url.searchParams.get("skip") === "10" ? held : undefined,
+      },
+    );
+    await screen.findByText("Atlas 1", {}, { timeout: 8000 });
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() =>
+      expect(view.stub.requests.some((r) => r.includes("skip=10"))).toBe(true),
+    );
+    return view;
+  };
+
+  it("keeps the previous rows read-only until the page arrives", async () => {
+    const user = userEvent.setup();
+    await open(user);
+    await user.dblClick(screen.getByText("Atlas 1"));
+    expect(screen.queryByRole("textbox")).toBeNull();
+    release();
+    await screen.findByText("Ember 13", {}, { timeout: 8000 });
+    await user.dblClick(screen.getByText("Ember 13"));
+    expect(await screen.findByRole("textbox")).toBeInTheDocument();
+  }, 20_000);
+
+  it("also honours the caller's isCellEditable once the page arrives", async () => {
+    const user = userEvent.setup();
+    await open(user, () => false);
+    release();
+    await screen.findByText("Ember 13", {}, { timeout: 8000 });
+    await user.dblClick(screen.getByText("Ember 13"));
+    expect(screen.queryByRole("textbox")).toBeNull();
+  }, 20_000);
 });
 
 describe("inline editing", () => {
