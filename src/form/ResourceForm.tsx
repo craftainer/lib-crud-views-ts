@@ -145,12 +145,8 @@ function FormController({
   const { hooks, resource, capabilities } = ready;
   const formId = useId();
 
-  const queryName =
-    props.apiVersion === undefined
-      ? props.name
-      : `${props.name}@${props.apiVersion}`;
   const record = useQuery({
-    ...recordOptions(queryName, ready.api, id ?? 0),
+    ...recordOptions(ready.namespace, ready.queryName, ready.api, id ?? 0),
     enabled: mode === "edit",
   });
   const create = hooks.useCreate();

@@ -28,30 +28,48 @@ Source of truth: `src/core/types.ts`, `registry.ts`, `fieldComponents.tsx`.
 - `client` is a `@craftainer/crud-sdk` `CrudClient`; `queryClient` a TanStack
   `QueryClient`. `theme` (a MUI `Theme`) is optional: omit it to inherit the
   ambient theme. The library never creates a theme.
-- `scope` separates cached manifests of different callers; `locale` and
-  `timeZone` drive number and `datetime` formatting (`date` always UTC).
-- `useCrud()` returns `{ client, queryClient, scope, locale, timeZone,
-renderers }` and throws outside a provider.
+- `scope` is optional. Omit it and the provider resolves `client.namespace()`:
+  `{ client: client.id, scope }` where `scope` is `"anon"` or a hash of the
+  bearer token. Give a string to name the caller yourself (for example the
+  user id); the client part stays `client.id`. `locale` and `timeZone` drive
+  number and `datetime` formatting (`date` always UTC).
+- `useCrud()` returns `{ client, queryClient, namespace, namespaceError,
+locale, timeZone, renderers }` and throws outside a provider. `namespace` is
+  `undefined` while `client.namespace()` is pending and `namespaceError` is set
+  when it rejects (a token provider that threw); `useResource` stays
+  `"pending"` for the first and is `"error"` for the second. The namespace is
+  resolved once per client: after a login, logout or token refresh that
+  changes the caller, remount the provider (give it a `key` of the token).
 
 ## 2. `useResource(name, apiVersion?)`
 
 Returns one of:
 
-| `status`    | Members                                                                                                                                                                                                                      |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `"pending"` | `error: null`                                                                                                                                                                                                                |
-| `"error"`   | `error: Error` (`UnknownResourceError`, `ManifestError`, a network `CrudError`)                                                                                                                                              |
-| `"ready"`   | `resource` (the manifest entry), `capabilities` (= `resource.capabilities`), `fields: FieldDescriptor[]`, `field(name)`, `handle` (the SDK `ResourceClient`, for clone/publish/restore/bulk), `api` (`TanstackApi`), `hooks` |
+| `status`    | Members                                                                                                                                                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `"pending"` | `error: null`                                                                                                                                                                                                                                          |
+| `"error"`   | `error: Error` (`UnknownResourceError`, `ManifestError`, a network `CrudError`)                                                                                                                                                                        |
+| `"ready"`   | `resource` (the manifest entry), `capabilities` (= `resource.capabilities`), `fields: FieldDescriptor[]`, `field(name)`, `handle` (the SDK `ResourceClient`, for clone/publish/restore/bulk), `namespace`, `queryName`, `api` (`TanstackApi`), `hooks` |
 
 `hooks` (stable while the resource is): `useList(query?)`,
 `useInfiniteList(query?, { limit })`, `useRecord(id)`, `useStats(query?)`,
 `usePredict(query?)`, `useRevisions(id)`, `useCreate()`, `useUpdate()`
-(variables `{ id, patch, ifMatch? }`), `useDelete()`. Query keys come from
-the SDK's `crudKeys`, with resource `name` (or `name@apiVersion` when a
-version was requested), and mutations invalidate lists, stats and predictions
-as the SDK's `*MutationOptions` do. Views gate every optional feature on
-`capabilities`; the manifest is already filtered to what the caller may read,
-and the server enforces writes.
+(variables `{ id, patch, ifMatch? }`), `useDelete()`. Every query key is the
+SDK's `["crud", client, resource, scope, kind, ...]` (`kind` is `list`,
+`record`, `stats`, `predict`, `revisions`, or `trash` for `TrashList`), and the
+manifest is `["crud", client, "_manifest", scope]`, where `client` and `scope`
+are the provider's namespace and `resource` is the resource `name`, or
+`name@apiVersion` when a version was requested. Two clients, two callers or two
+versions on one `QueryClient` never share an entry. The ready result exposes
+the pair as `namespace` and `queryName`, the first two arguments of the SDK's
+`*Options` factories and `invalidate*` helpers. Mutations invalidate lists,
+stats and predictions of the resource for every scope of the client, as the
+SDK's `*MutationOptions` do. `useInvalidateResource(name)` (publish, restore,
+bulk) invalidates every cached query of the resource on this client, across
+versions and scopes. The resource handle is cached outside the SDK keys, under
+`["crud-views", "handle", client, scope, name, apiVersion]`. Views gate every
+optional feature on `capabilities`; the manifest is already filtered to what
+the caller may read, and the server enforces writes.
 
 `ResourceGate` is `useResource` with the shared pending (spinner) and error
 (alert) states: `children(ready)` renders once ready.

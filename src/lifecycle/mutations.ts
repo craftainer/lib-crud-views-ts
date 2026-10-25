@@ -4,19 +4,22 @@ import type { BulkResult, JsonObject } from "@craftainer/crud-sdk";
 import { useCrud, type ReadyResource } from "../core/index.ts";
 
 /**
- * Refreshes every cached query of one resource (all API versions), for the
- * calls the core's hooks do not cover: publish, restore and bulk.
+ * Refreshes every cached query of one resource on this client (all API
+ * versions and caller scopes), for the calls the core's hooks do not cover:
+ * publish, restore and bulk. Keys are `["crud", client, resource, ...]` where
+ * `resource` is `name` or `name@apiVersion`, so the match ignores the version.
  */
 export function useInvalidateResource(name: string): () => Promise<void> {
-  const { queryClient } = useCrud();
+  const { client, queryClient } = useCrud();
   return useCallback(
     () =>
       queryClient.invalidateQueries({
-        predicate: (query) =>
-          `${String(query.queryKey[0])}/${String(query.queryKey[1]).split("@")[0]}` ===
-          `crud/${name}`,
+        predicate: ({ queryKey: key }) =>
+          key[0] === "crud" &&
+          key[1] === client.id &&
+          String(key[2]).split("@")[0] === name,
       }),
-    [queryClient, name],
+    [queryClient, client, name],
   );
 }
 

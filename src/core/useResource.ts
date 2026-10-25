@@ -2,8 +2,8 @@ import {
   UnknownResourceError,
   findResource,
   type Capabilities,
-  type CrudClient,
   type JsonObject,
+  type Manifest,
   type Resource,
   type ResourceClient,
 } from "@craftainer/crud-sdk";
@@ -19,12 +19,14 @@ import {
   statsOptions,
   tanstackApi,
   updateMutationOptions,
+  type CrudNamespace,
   type CrudQuery,
   type InfiniteListInit,
   type TanstackApi,
   type UpdateVariables,
 } from "@craftainer/crud-sdk/tanstack";
 import {
+  skipToken,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -76,6 +78,13 @@ export interface ReadyResource<
   field(name: string): FieldDescriptor | undefined;
   /** The SDK handle, for calls the hooks do not cover (clone, publish, restore, bulk). */
   readonly handle: ResourceClient<Read, Create, Update>;
+  /** The `{ client, scope }` of this resource's query keys. */
+  readonly namespace: CrudNamespace;
+  /**
+   * The resource string in its query keys: `name`, or `name@apiVersion` when a
+   * version was requested. Pass it to the SDK's `invalidate*` helpers.
+   */
+  readonly queryName: string;
   readonly api: TanstackApi<Read, Create, Update>;
   readonly hooks: ResourceHooks<Read, Create, Update>;
 }
@@ -96,43 +105,47 @@ export type UseResourceResult<
   Update extends object = JsonObject,
 > = PendingResource | FailedResource | ReadyResource<Read, Create, Update>;
 
-const clientIds = new WeakMap<CrudClient, number>();
-let nextClientId = 0;
-/** A process-unique number for `client`, for query keys that must not mix clients. */
-export function clientId(client: CrudClient): number {
-  let id = clientIds.get(client);
-  if (id === undefined) {
-    id = nextClientId++;
-    clientIds.set(client, id);
-  }
-  return id;
-}
+/** The key of the disabled queries while the namespace is unknown: no data is ever stored under it. */
+const WAITING_MANIFEST_KEY: readonly unknown[] = [
+  "crud-views",
+  "waiting",
+  "manifest",
+];
+const WAITING_HANDLE_KEY: readonly unknown[] = [
+  "crud-views",
+  "waiting",
+  "handle",
+];
 
 function buildHooks<
   Read extends object,
   Create extends object,
   Update extends object,
 >(
+  ns: CrudNamespace,
   name: string,
   api: TanstackApi<Read, Create, Update>,
   queryClient: ReturnType<typeof useCrud>["queryClient"],
 ): ResourceHooks<Read, Create, Update> {
   return {
-    useList: (query) => useQuery(listOptions(name, api, query)),
+    useList: (query) => useQuery(listOptions(ns, name, api, query)),
     useInfiniteList: (query, init) =>
-      useInfiniteQuery(infiniteListOptions(name, api, query, init)),
-    useRecord: (id) => useQuery(recordOptions(name, api, id)),
-    useStats: (query) => useQuery(statsOptions(name, api, query)),
-    usePredict: (query) => useQuery(predictOptions(name, api, query)),
-    useRevisions: (id) => useQuery(revisionsOptions(name, api, id)),
-    useCreate: () => useMutation(createMutationOptions(queryClient, name, api)),
-    useUpdate: () => useMutation(updateMutationOptions(queryClient, name, api)),
-    useDelete: () => useMutation(deleteMutationOptions(queryClient, name, api)),
+      useInfiniteQuery(infiniteListOptions(ns, name, api, query, init)),
+    useRecord: (id) => useQuery(recordOptions(ns, name, api, id)),
+    useStats: (query) => useQuery(statsOptions(ns, name, api, query)),
+    usePredict: (query) => useQuery(predictOptions(ns, name, api, query)),
+    useRevisions: (id) => useQuery(revisionsOptions(ns, name, api, id)),
+    useCreate: () =>
+      useMutation(createMutationOptions(queryClient, ns, name, api)),
+    useUpdate: () =>
+      useMutation(updateMutationOptions(queryClient, ns, name, api)),
+    useDelete: () =>
+      useMutation(deleteMutationOptions(queryClient, ns, name, api)),
   };
 }
 
 /**
- * Loads the manifest (once per caller scope) and returns the resource `name`
+ * Waits for the query namespace, loads the manifest (once per caller scope) and returns the resource `name`
  * (the highest `api_version` unless given) with its capabilities, described
  * fields, SDK handle and TanStack hooks. Query keys use `name`, or
  * `name@apiVersion` when `apiVersion` is given, so two versions never share a cache entry.
@@ -142,12 +155,12 @@ export function useResource<
   Create extends object = JsonObject,
   Update extends object = JsonObject,
 >(name: string, apiVersion?: string): UseResourceResult<Read, Create, Update> {
-  const { client, queryClient, scope } = useCrud();
-  const manifest = useQuery({
-    ...manifestOptions(
-      { manifest: () => client.manifest() },
-      `${clientId(client)}:${scope}`,
-    ),
+  const { client, queryClient, namespace, namespaceError } = useCrud();
+  const manifest = useQuery<Manifest>({
+    ...(namespace === undefined
+      ? { queryKey: WAITING_MANIFEST_KEY, queryFn: skipToken }
+      : manifestOptions(namespace, { manifest: () => client.manifest() })),
+    enabled: namespace !== undefined,
     staleTime: Number.POSITIVE_INFINITY,
   });
   const resource =
@@ -155,20 +168,28 @@ export function useResource<
       ? undefined
       : findResource(manifest.data, name, apiVersion);
   const handle = useQuery({
-    queryKey: [
-      "crud",
-      "_handle",
-      clientId(client),
-      scope,
-      name,
-      apiVersion ?? null,
-    ],
+    // Outside the SDK's `crud` keys: a handle is no cached response, so an
+    // invalidation of the resource must not rebuild it (and its hooks).
+    queryKey:
+      namespace === undefined
+        ? WAITING_HANDLE_KEY
+        : [
+            "crud-views",
+            "handle",
+            namespace.client,
+            namespace.scope,
+            name,
+            apiVersion ?? null,
+          ],
     queryFn: () => client.resource<Read, Create, Update>(name, apiVersion),
-    enabled: resource !== undefined,
+    enabled: namespace !== undefined && resource !== undefined,
     staleTime: Number.POSITIVE_INFINITY,
   });
   const ready = handle.data;
   return useMemo<UseResourceResult<Read, Create, Update>>(() => {
+    if (namespaceError !== undefined)
+      return { status: "error", error: namespaceError };
+    if (namespace === undefined) return { status: "pending", error: null };
     if (manifest.error !== null && manifest.data === undefined)
       return { status: "error", error: manifest.error };
     if (manifest.data !== undefined && resource === undefined) {
@@ -185,6 +206,7 @@ export function useResource<
       return { status: "pending", error: null };
     const fields = describeFields(resource);
     const api = tanstackApi(client, ready);
+    const queryName = apiVersion === undefined ? name : `${name}@${apiVersion}`;
     return {
       status: "ready",
       error: null,
@@ -193,14 +215,14 @@ export function useResource<
       fields,
       field: (fieldName) => fields.find((f) => f.name === fieldName),
       handle: ready,
+      namespace,
+      queryName,
       api,
-      hooks: buildHooks(
-        apiVersion === undefined ? name : `${name}@${apiVersion}`,
-        api,
-        queryClient,
-      ),
+      hooks: buildHooks(namespace, queryName, api, queryClient),
     };
   }, [
+    namespace,
+    namespaceError,
     manifest.error,
     manifest.data,
     resource,
