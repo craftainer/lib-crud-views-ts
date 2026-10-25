@@ -202,9 +202,13 @@ export function DatetimeInput(props: InputRendererProps): ReactElement {
       value={toLocal(value)}
       onChange={(e) => {
         const raw = e.target.value;
-        onChange(
-          raw === "" ? emptyValue(field) : new Date(`${raw}Z`).toISOString(),
-        );
+        if (raw === "") {
+          onChange(emptyValue(field));
+          return;
+        }
+        // The browser takes years beyond 9999, which ISO-8601 cannot write unsigned.
+        const instant = new Date(`${raw}Z`);
+        if (!Number.isNaN(instant.getTime())) onChange(instant.toISOString());
       }}
       helperText={props.error ?? props.helperText ?? "UTC"}
       slotProps={{ inputLabel: { shrink: true } }}

@@ -29,7 +29,6 @@ import {
 } from "../core/index.ts";
 import { FieldList } from "../detail/FieldList.tsx";
 import { ConfirmDialog } from "../lifecycle/ConfirmDialog.tsx";
-import { useInvalidateResource } from "../lifecycle/mutations.ts";
 import {
   CREATED_AT_FIELD,
   changedFields,
@@ -85,7 +84,6 @@ function RevisionListVariant({
   onRestored,
 }: VariantProps): ReactElement {
   const update = ready.hooks.useUpdate();
-  const invalidate = useInvalidateResource(ready.resource.name);
   const [target, setTarget] = useState<Revision | null>(null);
   return (
     <>
@@ -138,7 +136,6 @@ function RevisionListVariant({
             {
               onSuccess: () => {
                 setTarget(null);
-                void invalidate();
                 onRestored?.(revision);
               },
             },

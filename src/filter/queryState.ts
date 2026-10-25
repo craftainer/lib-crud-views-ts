@@ -92,6 +92,7 @@ const NAIVE_DATETIME = /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?$/;
 function parseScalar(
   field: FieldDescriptor,
   text: string,
+  keepEmpty = false,
 ): FilterScalar | undefined {
   switch (field.kind) {
     case "number":
@@ -110,7 +111,7 @@ function parseScalar(
       return Number.isNaN(d.getTime()) ? undefined : d;
     }
     default:
-      return text === "" ? undefined : text;
+      return text === "" && !keepEmpty ? undefined : text;
   }
 }
 
@@ -132,17 +133,31 @@ function splitList(text: string): string[] {
 const escapeItem = (text: string): string =>
   text.replaceAll("\\", "\\\\").replaceAll(",", "\\,");
 
+/**
+ * `parseOperand` for one text, either typed (`exact` false: list items are
+ * trimmed and empty ones dropped) or written by `formatOperand` (`exact`:
+ * every item as it was, so a list round-trips).
+ */
+function readOperand(
+  field: FieldDescriptor,
+  op: FilterOp,
+  text: string,
+  exact: boolean,
+): FilterScalar | readonly FilterScalar[] | undefined {
+  if (op !== "in") return parseScalar(field, text);
+  const items = splitList(text)
+    .map((part) => parseScalar(field, exact ? part : part.trim(), exact))
+    .filter((v): v is FilterScalar => v !== undefined);
+  return items.length === 0 ? undefined : items;
+}
+
 /** Reads typed text as the operand of `op` on `field` (`in` takes a comma-separated list); `undefined` when it does not parse. */
 export function parseOperand(
   field: FieldDescriptor,
   op: FilterOp,
   text: string,
 ): FilterScalar | readonly FilterScalar[] | undefined {
-  if (op !== "in") return parseScalar(field, text);
-  const items = splitList(text)
-    .map((part) => parseScalar(field, part.trim()))
-    .filter((v): v is FilterScalar => v !== undefined);
-  return items.length === 0 ? undefined : items;
+  return readOperand(field, op, text, false);
 }
 
 /** The text form of an operand: the inverse of `parseOperand`. */
@@ -264,7 +279,7 @@ export function decodeState(search: string, ctx: QueryContext): QueryState {
         !field.filterOps.includes(op)
       )
         continue;
-      const operand = parseOperand(field, op, text);
+      const operand = readOperand(field, op, text, true);
       if (operand !== undefined)
         next[field.name] = withOp(next[field.name], op, operand);
     }

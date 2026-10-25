@@ -169,6 +169,16 @@ describe("input renderers", () => {
     expect(screen.getByLabelText("Bad")).toHaveValue("");
   });
 
+  it("ignores a datetime the browser accepts but ISO-8601 cannot write", () => {
+    const a = setup({ kind: "datetime" }, "2026-01-02T09:30:00Z");
+    // `datetime-local` takes years beyond 9999; `toISOString` would need a sign.
+    fireEvent.change(screen.getByLabelText("Thing"), {
+      target: { value: "275760-09-13T00:01" },
+    });
+    expect(a.emitted).toEqual([]);
+    expect(screen.getByLabelText("Thing")).toHaveValue("2026-01-02T09:30");
+  });
+
   it("picks enum choices and offers None only when optional", async () => {
     const a = setup({ kind: "enum", choices: ["easy", "very_hard"] }, "easy");
     await a.user.click(screen.getByRole("combobox", { name: "Thing" }));

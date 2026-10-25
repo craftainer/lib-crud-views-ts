@@ -56,6 +56,8 @@ export function BulkPanel({
   const list = ready.hooks.useList({
     filters: toQueryFilters(filters ?? {}),
     limit,
+    // Drafts are listed so they can be ticked: Publish acts on them.
+    includeUnpublished: ready.capabilities.draft_publish,
   });
   // Ticked records that left the data set (deleted elsewhere, a smaller page) are no longer selected.
   const { data, isPending } = list;

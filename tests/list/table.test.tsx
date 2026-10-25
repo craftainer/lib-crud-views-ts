@@ -8,7 +8,12 @@ import { manyHeroes } from "../fixtures/routes/list.ts";
 import { heroRows } from "../fixtures/stub.ts";
 import { renderCrud } from "../helpers.tsx";
 
+// The first grid render takes several seconds under load; the default 5 s test timeout would cut the 8 s waits short.
+vi.setConfig({ testTimeout: 30_000 });
+
 const grid = { disableVirtualization: true };
+// The grid renders slowly under load (VITEST_MAX_WORKERS=2): wait as long as the cards tests do.
+const wait = { timeout: 8000 };
 
 const lastList = (requests: string[]): string =>
   requests.filter((r) => r.startsWith("GET /api/crud/v1/heroes/v2")).at(-1) ??
@@ -29,7 +34,9 @@ describe("DataTableList", () => {
         ]}
       />,
     );
-    expect(await screen.findByText("Captain Ledger")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Captain Ledger", {}, wait),
+    ).toBeInTheDocument();
     expect(screen.getByText("The Margin")).toBeInTheDocument();
     expect(
       screen.getByRole("columnheader", { name: "Level" }),
@@ -49,7 +56,7 @@ describe("DataTableList", () => {
         columns={["id", "name"]}
       />,
     );
-    await screen.findByText("Captain Ledger");
+    await screen.findByText("Captain Ledger", {}, wait);
     await user.click(screen.getByRole("switch", { name: "Include drafts" }));
     expect(adapter.read()).toBe("l_drafts=1");
     await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(4));
@@ -66,7 +73,7 @@ describe("DataTableList", () => {
         columns={["title"]}
       />,
     );
-    await screen.findByText("Reconcile the ledger");
+    await screen.findByText("Reconcile the ledger", {}, wait);
     expect(screen.queryByRole("switch", { name: "Include drafts" })).toBeNull();
     expect(
       screen.queryByRole("switch", { name: "Include archived" }),
@@ -85,7 +92,7 @@ describe("DataTableList", () => {
         defaults={{ sort: [{ field: "power_level", desc: true }] }}
       />,
     );
-    await screen.findByText("Captain Ledger");
+    await screen.findByText("Captain Ledger", {}, wait);
     expect(lastList(stub.requests)).toContain("sort=-power_level");
     expect(screen.queryByRole("combobox", { name: "Sort by" })).toBeNull();
 
@@ -111,7 +118,7 @@ describe("DataTableList", () => {
         sortableOnly
       />,
     );
-    await screen.findByText("Captain Ledger");
+    await screen.findByText("Captain Ledger", {}, wait);
     expect(screen.queryByRole("columnheader", { name: /Powers/ })).toBeNull();
     expect(
       screen.getByRole("columnheader", { name: /Name/ }),
@@ -131,11 +138,11 @@ describe("DataTableList", () => {
       />,
       { heroes: manyHeroes(25) },
     );
-    await screen.findByText("Atlas 1", {}, { timeout: 8000 });
+    await screen.findByText("Atlas 1", {}, wait);
     expect(lastList(stub.requests)).toContain("limit=11");
     expect(screen.queryByText("Ember 13")).toBeNull();
     await user.click(screen.getByRole("button", { name: /next page/i }));
-    await screen.findByText("Ember 13", {}, { timeout: 8000 });
+    await screen.findByText("Ember 13", {}, wait);
     expect(adapter.read()).toBe("l_page=2");
     expect(lastList(stub.requests)).toContain("skip=10");
 
@@ -144,7 +151,7 @@ describe("DataTableList", () => {
     )!;
     await user.click(footer.querySelector<HTMLElement>("[role=combobox]")!);
     await user.click(screen.getByRole("option", { name: "25" }));
-    await screen.findByText("Helix 24", {}, { timeout: 8000 });
+    await screen.findByText("Helix 24", {}, wait);
     expect(adapter.read()).toBe("l_size=25");
     expect(screen.getByRole("button", { name: /next page/i })).toBeDisabled();
   }, 20_000);
@@ -159,7 +166,7 @@ describe("DataTableList", () => {
         columns={["id", "name"]}
       />,
     );
-    await screen.findByText("Captain Ledger");
+    await screen.findByText("Captain Ledger", {}, wait);
     await user.click(screen.getByRole("button", { name: "Columns" }));
     const dialog = screen.getByRole("dialog", { name: "Columns" });
     await user.click(within(dialog).getByRole("checkbox", { name: "Name" }));
@@ -187,7 +194,7 @@ describe("DataTableList", () => {
         onRowClick={onRowClick}
       />,
     );
-    await user.click(await screen.findByText("The Margin"));
+    await user.click(await screen.findByText("The Margin", {}, wait));
     expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }));
     expect(stub.requests.length).toBeGreaterThan(0);
   });
@@ -202,11 +209,11 @@ describe("DataTableList", () => {
       />,
       { list: "error" },
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    expect(await screen.findByRole("alert", {}, wait)).toHaveTextContent(
       "Could not load",
     );
     await user.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(await screen.findByRole("alert", {}, wait)).toBeInTheDocument();
   });
 });
 
@@ -238,7 +245,7 @@ describe("inline editing while the next page loads", () => {
           url.searchParams.get("skip") === "10" ? held : undefined,
       },
     );
-    await screen.findByText("Atlas 1", {}, { timeout: 8000 });
+    await screen.findByText("Atlas 1", {}, wait);
     await user.click(screen.getByRole("button", { name: /next page/i }));
     await waitFor(() =>
       expect(view.stub.requests.some((r) => r.includes("skip=10"))).toBe(true),
@@ -252,16 +259,16 @@ describe("inline editing while the next page loads", () => {
     await user.dblClick(screen.getByText("Atlas 1"));
     expect(screen.queryByRole("textbox")).toBeNull();
     release();
-    await screen.findByText("Ember 13", {}, { timeout: 8000 });
+    await screen.findByText("Ember 13", {}, wait);
     await user.dblClick(screen.getByText("Ember 13"));
-    expect(await screen.findByRole("textbox")).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", {}, wait)).toBeInTheDocument();
   }, 20_000);
 
   it("also honours the caller's isCellEditable once the page arrives", async () => {
     const user = userEvent.setup();
     await open(user, () => false);
     release();
-    await screen.findByText("Ember 13", {}, { timeout: 8000 });
+    await screen.findByText("Ember 13", {}, wait);
     await user.dblClick(screen.getByText("Ember 13"));
     expect(screen.queryByRole("textbox")).toBeNull();
   }, 20_000);
@@ -273,8 +280,8 @@ describe("inline editing", () => {
     from: string,
     text: string,
   ): Promise<void> => {
-    await user.dblClick(await screen.findByText(from));
-    const input = await screen.findByRole("textbox");
+    await user.dblClick(await screen.findByText(from, {}, wait));
+    const input = await screen.findByRole("textbox", {}, wait);
     await user.clear(input);
     await user.type(input, `${text}{Enter}`);
   };
@@ -291,7 +298,7 @@ describe("inline editing", () => {
       />,
     );
     await edit(user, "Captain Ledger", "Captain Index");
-    await screen.findByText("Captain Index");
+    await screen.findByText("Captain Index", {}, wait);
     expect(stub.requests).toContain("PATCH /api/crud/v1/heroes/v2/json?id=1");
   });
 
@@ -306,7 +313,7 @@ describe("inline editing", () => {
         editable
       />,
     );
-    await user.dblClick(await screen.findByText("Captain Ledger"));
+    await user.dblClick(await screen.findByText("Captain Ledger", {}, wait));
     await user.keyboard("{Enter}");
     await user.dblClick(screen.getAllByText("stub-owner")[0]!);
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -328,7 +335,7 @@ describe("inline editing", () => {
       />,
     );
     await edit(user, "Captain Ledger", "Captain Index");
-    await screen.findByText("Captain Index");
+    await screen.findByText("Captain Index", {}, wait);
     expect(stub.requests.some((r) => r.startsWith("PATCH"))).toBe(true);
   });
 
@@ -358,7 +365,7 @@ describe("inline editing", () => {
     await user.keyboard("{Enter}");
     expect(stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
     release(etagOf({ id: 1, updated_at: heroRows[0]!["updated_at"] }));
-    await screen.findByText("Captain Index");
+    await screen.findByText("Captain Index", {}, wait);
     expect(stub.requests.filter((r) => r.startsWith("PATCH"))).toHaveLength(1);
     expect(ifMatch).toHaveBeenCalledTimes(1);
     expect(document.querySelector("[aria-busy=true]")).toBeNull();
@@ -377,7 +384,7 @@ describe("inline editing", () => {
       />,
     );
     await edit(user, "Captain Ledger", "Captain Index");
-    await screen.findByText("Captain Index");
+    await screen.findByText("Captain Index", {}, wait);
     expect(stub.requests.filter((r) => r.startsWith("PATCH"))).toHaveLength(1);
   });
 
@@ -395,7 +402,7 @@ describe("inline editing", () => {
     );
     await edit(user, "Captain Ledger", "Captain Index");
     expect(
-      await screen.findByText("Could not save: etag lookup failed"),
+      await screen.findByText("Could not save: etag lookup failed", {}, wait),
     ).toBeInTheDocument();
     expect(stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
     expect(document.querySelector("[aria-busy=true]")).toBeNull();
@@ -414,7 +421,9 @@ describe("inline editing", () => {
       />,
     );
     await edit(user, "Captain Ledger", "Captain Index");
-    expect(await screen.findByText(/changed elsewhere/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/changed elsewhere/, {}, wait),
+    ).toBeInTheDocument();
     await waitFor(() =>
       expect(
         stub.requests.filter((r) => r.startsWith("GET /api/crud/v1/heroes/v2"))
@@ -445,6 +454,6 @@ describe("inline editing", () => {
       />,
     );
     await edit(user, "Captain Ledger", "Captain Index");
-    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(await screen.findByText(message, {}, wait)).toBeInTheDocument();
   });
 });

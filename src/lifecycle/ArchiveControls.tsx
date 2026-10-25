@@ -6,7 +6,7 @@ import Switch from "@mui/material/Switch";
 import { useState, type ReactElement } from "react";
 import type { ReadyResource } from "../core/index.ts";
 import type { RecordActionProps } from "./DraftControls.tsx";
-import { useRestore } from "./mutations.ts";
+import { useDeleteThen, useRestoreThen } from "./mutations.ts";
 
 export interface ArchivedToggleProps {
   readonly ready: ReadyResource;
@@ -60,9 +60,17 @@ export function ArchiveButton({
   /** The record is archived already: the button hides, an Undo toast can still show. */
   readonly archived?: boolean;
 }): ReactElement | null {
-  const remove = ready.hooks.useDelete();
-  const restore = useRestore(ready);
   const [undoOpen, setUndoOpen] = useState(false);
+  const remove = useDeleteThen(ready, () => {
+    setUndoOpen(true);
+    onArchived?.();
+    onDone?.();
+  });
+  const restore = useRestoreThen(ready, () => {
+    setUndoOpen(false);
+    onUndone?.();
+    onDone?.();
+  });
   if (!ready.capabilities.archive_restore) return null;
   const error = remove.error ?? restore.error;
   return (
@@ -73,15 +81,7 @@ export function ArchiveButton({
           size="small"
           aria-label={ariaLabel}
           disabled={remove.isPending}
-          onClick={() =>
-            remove.mutate(id, {
-              onSuccess: () => {
-                setUndoOpen(true);
-                onArchived?.();
-                onDone?.();
-              },
-            })
-          }
+          onClick={() => remove.mutate(id)}
         >
           {label}
         </Button>
@@ -98,15 +98,7 @@ export function ArchiveButton({
           <Button
             size="small"
             color="inherit"
-            onClick={() =>
-              restore.mutate(id, {
-                onSuccess: () => {
-                  setUndoOpen(false);
-                  onUndone?.();
-                  onDone?.();
-                },
-              })
-            }
+            onClick={() => restore.mutate(id)}
           >
             Undo
           </Button>
@@ -122,7 +114,7 @@ export function RestoreButton({
   id,
   onDone,
 }: RecordActionProps): ReactElement | null {
-  const restore = useRestore(ready);
+  const restore = useRestoreThen(ready, onDone);
   if (!ready.capabilities.archive_restore) return null;
   return (
     <>
@@ -130,7 +122,7 @@ export function RestoreButton({
         size="small"
         variant="contained"
         disabled={restore.isPending}
-        onClick={() => restore.mutate(id, { onSuccess: () => onDone?.() })}
+        onClick={() => restore.mutate(id)}
       >
         Restore
       </Button>

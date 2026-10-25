@@ -90,6 +90,30 @@ describe("RecordRevisions list", () => {
     expect(patch).toHaveLength(3);
   });
 
+  it("refreshes the record's queries once after a restore", async () => {
+    const onRestored = vi.fn();
+    const { stub } = renderCrud(
+      <RecordRevisions resource="heroes" id={1} onRestored={onRestored} />,
+      { heroes: lifecycleHeroes() },
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Restore revision 101" }),
+    );
+    const reads = (): number =>
+      stub.requests.filter(
+        (r) => r.startsWith("GET ") && r.includes("revision"),
+      ).length;
+    expect(reads()).toBe(1);
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Restore",
+      }),
+    );
+    await waitFor(() => expect(onRestored).toHaveBeenCalledOnce());
+    // The update hook already refreshes the revisions; nothing refreshes twice.
+    expect(reads()).toBe(2);
+  });
+
   it("restores without a callback and Cancel closes the dialog", async () => {
     const { stub } = renderCrud(page("list"), { heroes: lifecycleHeroes() });
     await userEvent.click(

@@ -7,14 +7,39 @@ const isEmpty = (value: FieldValue): boolean =>
   value === "" ||
   (Array.isArray(value) && value.length === 0);
 
-function matches(pattern: string, value: string): boolean {
-  try {
-    return new RegExp(pattern, "u").test(value);
-  } catch {
-    // A pattern JavaScript cannot compile (Python flavour): the server checks it.
-    return true;
+/** Compiled patterns by source; `null` for one JavaScript cannot compile. */
+const compiled = new Map<string, RegExp | null>();
+
+/**
+ * JSON Schema patterns are ECMA-262 regular expressions, which SHOULD be built
+ * with the `u` flag (2020-12 core, "Regular Expressions"). Escapes that only
+ * the legacy grammar allows (`\_`, `\:`) throw under `u`, so those retry
+ * without it. A pattern neither grammar compiles (Python flavour) is left to
+ * the server, with one warning per pattern.
+ */
+function compile(pattern: string): RegExp | null {
+  const known = compiled.get(pattern);
+  if (known !== undefined) return known;
+  let regex: RegExp | null = null;
+  for (const flags of ["u", ""]) {
+    try {
+      regex = new RegExp(pattern, flags);
+      break;
+    } catch {
+      // Try the next grammar.
+    }
   }
+  if (regex === null) {
+    console.warn(
+      `The pattern ${JSON.stringify(pattern)} is not a JavaScript regular expression: it is not checked here, only by the server.`,
+    );
+  }
+  compiled.set(pattern, regex);
+  return regex;
 }
+
+const matches = (pattern: string, value: string): boolean =>
+  compile(pattern)?.test(value) ?? true;
 
 /**
  * The message for the first schema constraint `value` breaks, or `null`.
