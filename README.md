@@ -96,6 +96,9 @@ The edit waits for the promise and stays in a saving state (the cell stays
 in edit mode and the table is `aria-busy`); a rejection sends nothing and shows "Could not save: ..." like
 any other save error.
 
+While the table shows the previous page (the next one is still loading), its
+cells are read-only; editing works again once the new rows arrive.
+
 ### URL state
 
 A list keeps its filter, sort and paging state in the query string, through

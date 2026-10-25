@@ -91,6 +91,8 @@ export interface StubOptions {
   readonly manifest?: "ok" | "pending" | "down";
   /** The list endpoint's answer: `"pending"` never answers, `"error"` is a 500. */
   readonly list?: "ok" | "pending" | "error";
+  /** Awaited before a list request is answered (to hold one page back); `url` is the request. */
+  readonly listGate?: (url: URL) => Promise<void> | undefined;
   /** `true`: DELETE on heroes v2 archives the row and `restore` brings it back. */
   readonly softDelete?: boolean;
   /** `true`: lists include drafts, as if `include_unpublished` were always sent. */
@@ -184,6 +186,7 @@ export function createStubClient(options: StubOptions = {}): Stub {
     const id = url.searchParams.get("id");
     if (request.method === "GET" && id === null) {
       if (listMode === "pending") return never();
+      await options.listGate?.(url);
       if (listMode === "error")
         return json(500, { title: "boom", status: 500 });
       return json(
