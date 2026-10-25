@@ -87,7 +87,7 @@ describe("the query namespace", () => {
     expect(result.current).toBeUndefined();
     await waitFor(() =>
       expect(result.current).toEqual({
-        client: "http://stub.test",
+        client: "https://stub.test",
         scope: "anon",
       }),
     );
@@ -110,7 +110,7 @@ describe("the query namespace", () => {
       wrapper: providerFor(stub, newQueryClient(), "u1"),
     });
     expect(result.current.namespace).toEqual({
-      client: "http://stub.test",
+      client: "https://stub.test",
       scope: "u1",
     });
     expect(result.current.namespaceError).toBeUndefined();
@@ -216,7 +216,7 @@ describe("two clients or scopes on one QueryClient", () => {
     expect(
       queryClient
         .getQueryCache()
-        .findAll({ queryKey: ["crud", "http://stub.test", "heroes"] }),
+        .findAll({ queryKey: ["crud", "https://stub.test", "heroes"] }),
     ).toHaveLength(2);
   });
 
@@ -230,8 +230,8 @@ describe("two clients or scopes on one QueryClient", () => {
     expect(two.names[0]).toMatch(/^two /);
     expect(keysOf(queryClient)).toEqual(
       expect.arrayContaining([
-        '["crud","http://stub.test","heroes","u1","list"]',
-        '["crud","http://stub.test","heroes","u2","list"]',
+        '["crud","https://stub.test","heroes","u1","list"]',
+        '["crud","https://stub.test","heroes","u2","list"]',
       ]),
     );
   });

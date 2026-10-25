@@ -217,7 +217,7 @@ export function createStatsClient(
     );
   };
   return createClient({
-    baseUrl: "http://stub.test",
+    baseUrl: "https://stub.test",
     fetch: stubFetch as typeof fetch,
   });
 }

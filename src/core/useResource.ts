@@ -136,11 +136,17 @@ function buildHooks<
     usePredict: (query) => useQuery(predictOptions(ns, name, api, query)),
     useRevisions: (id) => useQuery(revisionsOptions(ns, name, api, id)),
     useCreate: () =>
-      useMutation(createMutationOptions(queryClient, ns, name, api)),
+      useMutation<Read, Error, Create>(
+        createMutationOptions(queryClient, ns, name, api),
+      ),
     useUpdate: () =>
-      useMutation(updateMutationOptions(queryClient, ns, name, api)),
+      useMutation<Read, Error, UpdateVariables<Update>>(
+        updateMutationOptions(queryClient, ns, name, api),
+      ),
     useDelete: () =>
-      useMutation(deleteMutationOptions(queryClient, ns, name, api)),
+      useMutation<unknown, Error, number>(
+        deleteMutationOptions(queryClient, ns, name, api),
+      ),
   };
 }
 
