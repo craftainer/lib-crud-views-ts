@@ -11,10 +11,14 @@ export interface SaveFailure {
   readonly message: string | null;
 }
 
-/** Normalises `loc` (`["body", "name", 0]`) to its field name. */
+/**
+ * Normalises `loc` (`["body", "name", 0]`) to its field name. Only the first
+ * element names where the error is (`body`, `query`); a field called `body` is
+ * `["body", "body"]`.
+ */
 function fieldOf(loc: readonly (string | number)[]): string | undefined {
-  const parts = loc.filter((part) => part !== "body" && part !== "query");
-  const first = parts[0];
+  const [head, ...rest] = loc;
+  const first = head === "body" || head === "query" ? rest[0] : head;
   return first === undefined ? undefined : String(first);
 }
 

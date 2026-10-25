@@ -3,7 +3,7 @@ import {
   ProblemError,
   ValidationFailed,
 } from "@craftainer/crud-sdk";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   describeFailure,
   groupFields,
@@ -54,11 +54,25 @@ describe("validateValue", () => {
     expect(validateValue(f, "abcd")).toBe("Must be at most 3 characters");
     expect(validateValue(f, "bcd")).toBe("Does not match the expected format");
     expect(validateValue(f, "abc")).toBeNull();
-    // A Python-only pattern cannot be checked here and is left to the server.
-    const odd = field({ constraints: constraints({ pattern: "(?P<x>a)" }) });
-    expect(validateValue(odd, "zzz")).toBeNull();
     expect(validateValue(field(), "anything")).toBeNull();
     expect(validateValue(field({ kind: "array" }), ["x"])).toBeNull();
+  });
+
+  it("checks a pattern only the legacy ECMA-262 grammar accepts", () => {
+    // `\_` is an error under the `u` flag but valid JSON Schema (ECMA-262, Annex B).
+    const f = field({ constraints: constraints({ pattern: "^[a-z]+\\_x$" }) });
+    expect(validateValue(f, "ab_x")).toBeNull();
+    expect(validateValue(f, "ab-x")).toBe("Does not match the expected format");
+  });
+
+  it("leaves a pattern JavaScript cannot compile to the server, and says so once", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const odd = field({ constraints: constraints({ pattern: "(?P<x>a)" }) });
+    expect(validateValue(odd, "zzz")).toBeNull();
+    expect(validateValue(odd, "zzz")).toBeNull();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]?.[0]).toContain("(?P<x>a)");
+    warn.mockRestore();
   });
 
   it("counts string length in code points, not UTF-16 code units", () => {
@@ -142,6 +156,26 @@ describe("describeFailure", () => {
     });
     expect(failure.message).toBe("ghost: unknown; whole body");
     expect(failure.conflict).toBe(false);
+  });
+
+  it("strips only the leading body or query from a loc", () => {
+    const failure = describeFailure(
+      new ValidationFailed({
+        status: 422,
+        title: "Unprocessable",
+        errors: [
+          { loc: ["body", "body"], msg: "bad body field", type: "x" },
+          { loc: ["body", "query", 1], msg: "bad query field", type: "x" },
+          { loc: ["query"], msg: "whole query", type: "x" },
+        ],
+      }),
+      ["body", "query"],
+    );
+    expect(failure.fieldErrors).toEqual({
+      body: "bad body field",
+      query: "bad query field",
+    });
+    expect(failure.message).toBe("whole query");
   });
 
   it("maps 422 errors that all land on fields to no alert text", () => {

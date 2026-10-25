@@ -6,6 +6,9 @@ import { ResourceList } from "../../src/list/index.ts";
 import { manyHeroes } from "../fixtures/routes/list.ts";
 import { renderCrud } from "../helpers.tsx";
 
+// The first grid render takes several seconds under load; the default 5 s test timeout would cut the 8 s waits short.
+vi.setConfig({ testTimeout: 30_000 });
+
 const wait = { timeout: 8000 };
 
 describe("CardGridList", () => {

@@ -56,7 +56,8 @@ function RangeFilter({
   show,
 }: FilterRendererProps & {
   type: "number" | "date" | "datetime-local";
-  parse: (raw: string) => FilterScalar;
+  /** `null`: the text is no operand (the change is ignored). */
+  parse: (raw: string) => FilterScalar | null;
   show: (v: unknown) => string;
 }): ReactElement | null {
   const ops = (["min", "max"] as const).filter((o) => has(field, o));
@@ -76,15 +77,11 @@ function RangeFilter({
               : label(field, op === "min" ? "from" : "to")
           }
           value={show(value?.[op])}
-          onChange={(e) =>
-            onChange(
-              withOp(
-                value,
-                op,
-                e.target.value === "" ? undefined : parse(e.target.value),
-              ),
-            )
-          }
+          onChange={(e) => {
+            const operand =
+              e.target.value === "" ? undefined : parse(e.target.value);
+            if (operand !== null) onChange(withOp(value, op, operand));
+          }}
           slotProps={{
             inputLabel: { shrink: type !== "number" ? true : undefined },
           }}
@@ -110,7 +107,11 @@ export function DatetimeFilter(
     <RangeFilter
       {...props}
       type="datetime-local"
-      parse={(raw) => new Date(`${raw}Z`)}
+      parse={(raw) => {
+        const instant = new Date(`${raw}Z`);
+        // The browser takes years beyond 9999, which ISO-8601 cannot write unsigned.
+        return Number.isNaN(instant.getTime()) ? null : instant;
+      }}
       show={(v) =>
         v instanceof Date && !Number.isNaN(v.getTime())
           ? v.toISOString().slice(0, 16)

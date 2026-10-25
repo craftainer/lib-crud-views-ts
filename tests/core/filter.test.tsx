@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactElement } from "react";
 import { describe, expect, it } from "vitest";
@@ -131,6 +131,14 @@ describe("filter renderers", () => {
       { min: new Date(Number.NaN) },
     );
     expect(screen.getByLabelText("Thing from")).toHaveValue("");
+  });
+
+  it("ignores a datetime bound that is not a real instant", () => {
+    const a = setup({ kind: "datetime", filterOps: ["min"] }, {});
+    fireEvent.change(screen.getByLabelText("Thing from"), {
+      target: { value: "275760-09-13T00:01" },
+    });
+    expect(a.seen).toEqual([]);
   });
 
   it("filters booleans with Any, Yes and No", async () => {

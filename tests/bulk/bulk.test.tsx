@@ -392,6 +392,18 @@ describe("BulkRecords", () => {
     expect(stub.requests).not.toContain(`POST ${BASE}/publish?id=1`);
   });
 
+  it("lists drafts, so a draft can be ticked and published", async () => {
+    const { stub } = renderCrud(<BulkRecords resource="heroes" />, {
+      heroes: fresh(),
+    });
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: "Select record 2" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+    expect(await screen.findByText("Published 1 record.")).toBeInTheDocument();
+    expect(stub.requests).toContain(`POST ${BASE}/publish?id=2`);
+  });
+
   it("publishes several drafts", async () => {
     const heroes = fresh().map((row) => ({ ...row, is_draft: true }));
     renderCrud(<BulkRecords resource="heroes" />, { heroes, listDrafts: true });

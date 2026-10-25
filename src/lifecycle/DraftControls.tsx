@@ -6,7 +6,7 @@ import Stack from "@mui/material/Stack";
 import { useState, type ReactElement } from "react";
 import type { ReadyResource } from "../core/index.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
-import { usePublish } from "./mutations.ts";
+import { useDeleteThen, usePublishThen } from "./mutations.ts";
 import { recordStatus, type RecordStatus } from "./status.ts";
 
 const STATUS_LABEL: Record<RecordStatus, string> = {
@@ -57,7 +57,7 @@ export function PublishButton({
   id,
   onDone,
 }: RecordActionProps): ReactElement | null {
-  const publish = usePublish(ready);
+  const publish = usePublishThen(ready, onDone);
   if (!ready.capabilities.draft_publish) return null;
   return (
     <>
@@ -65,7 +65,7 @@ export function PublishButton({
         variant="contained"
         size="small"
         disabled={publish.isPending}
-        onClick={() => publish.mutate(id, { onSuccess: () => onDone?.() })}
+        onClick={() => publish.mutate(id)}
       >
         Publish
       </Button>
@@ -82,8 +82,11 @@ export function DiscardDraftButton({
   id,
   onDone,
 }: RecordActionProps): ReactElement | null {
-  const remove = ready.hooks.useDelete();
   const [open, setOpen] = useState(false);
+  const remove = useDeleteThen(ready, () => {
+    setOpen(false);
+    onDone?.();
+  });
   if (!ready.capabilities.draft_publish) return null;
   return (
     <>
@@ -103,14 +106,7 @@ export function DiscardDraftButton({
         confirmLabel="Discard"
         busy={remove.isPending}
         onClose={() => setOpen(false)}
-        onConfirm={() =>
-          remove.mutate(id, {
-            onSuccess: () => {
-              setOpen(false);
-              onDone?.();
-            },
-          })
-        }
+        onConfirm={() => remove.mutate(id)}
       >
         The draft is deleted and cannot be brought back.
         {remove.error !== null && ` ${remove.error.message}`}

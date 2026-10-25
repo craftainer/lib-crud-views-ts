@@ -125,6 +125,25 @@ describe("URL codec", () => {
     expect(decodeState(text, c)).toEqual(state);
   });
 
+  it("round-trips list items with spaces or no text", () => {
+    const fields = heroes.map((f) =>
+      f.name === "name"
+        ? { ...f, filterOps: [...f.filterOps, "in" as const] }
+        : f,
+    );
+    const c = ctx({}, "", fields);
+    for (const items of [[" a", "b "], ["a", ""], [""]]) {
+      const state = { ...initialState(c), filters: { name: { in: items } } };
+      expect(decodeState(encodeState(state, c), c).filters).toEqual(
+        state.filters,
+      );
+    }
+    // Typed text is still trimmed, and empty items dropped.
+    expect(parseOperand(byName("power_level"), "in", " 1 , ,2")).toEqual([
+      1, 2,
+    ]);
+  });
+
   it("writes nothing for the defaults and keeps foreign parameters", () => {
     const c = ctx();
     expect(encodeState(initialState(c), c)).toBe("");

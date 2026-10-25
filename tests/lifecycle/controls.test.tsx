@@ -1,5 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
   ArchiveButton,
@@ -10,6 +11,8 @@ import {
   RestoreButton,
   StatusBadge,
   StatusFilter,
+  usePublish,
+  useRestore,
 } from "../../src/lifecycle/index.ts";
 import { lifecycleHeroes } from "../fixtures/routes/detail.ts";
 import { renderCrud } from "../helpers.tsx";
@@ -303,6 +306,41 @@ describe("RestoreButton", () => {
     await waitFor(() =>
       expect(stub.requests).toContain(
         "POST /api/crud/v1/heroes/v2/json/restore?id=3",
+      ),
+    );
+  });
+});
+
+describe("usePublish and useRestore", () => {
+  it("publish and restore a record for an app's own buttons", async () => {
+    const { stub } = renderCrud(
+      <Ready>
+        {(ready) => {
+          const Own = (): ReactElement => {
+            const publish = usePublish(ready);
+            const restore = useRestore(ready);
+            return (
+              <>
+                <button onClick={() => publish.mutate(2)}>own publish</button>
+                <button onClick={() => restore.mutate(3)}>own restore</button>
+              </>
+            );
+          };
+          return <Own />;
+        }}
+      </Ready>,
+      { heroes },
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: "own publish" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "own restore" }));
+    await waitFor(() =>
+      expect(stub.requests).toEqual(
+        expect.arrayContaining([
+          "POST /api/crud/v1/heroes/v2/json/publish?id=2",
+          "POST /api/crud/v1/heroes/v2/json/restore?id=3",
+        ]),
       ),
     );
   });
