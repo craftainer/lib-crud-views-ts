@@ -113,6 +113,21 @@ const hasProperty = (schema: JsonObject, name: string): boolean => {
   );
 };
 
+/** Shown under a non-nullable optional field the user emptied in edit: the PATCH leaves it out. */
+const CLEARED_NOT_SAVED =
+  "Clearing this field is not saved; its value is kept.";
+
+/** Whether `field` was emptied by the user although the API has no null to store for it. */
+function clearedUnsaved(
+  field: FieldDescriptor,
+  value: FieldValue,
+  baseline: Row | undefined,
+): boolean {
+  if (baseline === undefined || field.nullable || field.required) return false;
+  const before = baseline[field.name];
+  return value === undefined && before !== undefined && before !== null;
+}
+
 type Status = "idle" | "saving" | "saved" | "nothing";
 
 const STATUS_TEXT: Record<Status, string> = {
@@ -350,26 +365,34 @@ function FormController({
   const actions = stepper || (autoSave && mode === "edit") ? undefined : submit;
 
   const fieldByName = new Map(editable.map((f) => [f.name, f]));
-  const renderField = (name: string): ReactElement => (
-    <FieldInput
-      key={name}
-      field={fieldByName.get(name) as FieldDescriptor}
-      resource={resource.name}
-      value={values[name]}
-      id={`${formId}-${name}`}
-      error={errorOf(name)}
-      renderers={renderers}
-      onChange={(value) => setValue(name, value)}
-      onBlur={() => setTouched((prev) => new Set(prev).add(name))}
-      onInvalid={(reason) =>
-        setInvalid((prev) => {
-          if ((prev[name] ?? null) === reason) return prev;
-          const { [name]: _removed, ...rest } = prev;
-          return reason === null ? rest : { ...rest, [name]: reason };
-        })
-      }
-    />
-  );
+  const renderField = (name: string): ReactElement => {
+    const field = fieldByName.get(name) as FieldDescriptor;
+    return (
+      <FieldInput
+        key={name}
+        field={field}
+        resource={resource.name}
+        value={values[name]}
+        id={`${formId}-${name}`}
+        error={errorOf(name)}
+        helperText={
+          mode === "edit" && clearedUnsaved(field, values[name], baseline)
+            ? CLEARED_NOT_SAVED
+            : undefined
+        }
+        renderers={renderers}
+        onChange={(value) => setValue(name, value)}
+        onBlur={() => setTouched((prev) => new Set(prev).add(name))}
+        onInvalid={(reason) =>
+          setInvalid((prev) => {
+            if ((prev[name] ?? null) === reason) return prev;
+            const { [name]: _removed, ...rest } = prev;
+            return reason === null ? rest : { ...rest, [name]: reason };
+          })
+        }
+      />
+    );
+  };
 
   let content: ReactElement;
   if (!loaded && record.isError) {

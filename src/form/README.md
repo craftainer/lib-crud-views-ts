@@ -19,6 +19,10 @@
 - Edit sends only changed fields. **Clearing a non-nullable optional field
   omits it from the PATCH** (nothing is sent for it); a nullable one sends
   `null`.
+  So the user is not left thinking it was saved, the emptied field shows the
+  helper text "Clearing this field is not saved; its value is kept." (through
+  the input's `helperText`, as MUI's `TextField` shows it) until it has a value
+  again. Create has no such hint: nothing was there to clear.
 - Submit is blocked while a built-in input reports an invalid draft
   (`onInvalid`, I4 addendum).
 - `If-Match`: the SDK's record query does not expose the ETag, so pass

@@ -28,6 +28,8 @@ function setup(
 const requests = (view: { stub: { requests: string[] } }, method: string) =>
   view.stub.requests.filter((r) => r.startsWith(`${method} `));
 
+const HINT = "Clearing this field is not saved; its value is kept.";
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -255,10 +257,35 @@ describe("edit", () => {
         ],
       },
     });
-    await view.user.clear(await screen.findByLabelText(/Due on/));
+    const due = await screen.findByLabelText(/Due on/);
+    expect(screen.queryByText(HINT)).toBeNull();
+    await view.user.clear(due);
+    // The hint sits under the emptied field, which is still described by it.
+    const hint = await screen.findByText(HINT);
+    expect(due).toHaveAccessibleDescription(HINT);
+    expect(hint).toBeInTheDocument();
     await view.user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("No changes to save")).toBeInTheDocument();
     expect(requests(view, "PATCH")).toHaveLength(0);
+    // Typing again takes the hint away.
+    await view.user.type(due, "2026-04-01");
+    expect(screen.queryByText(HINT)).toBeNull();
+  });
+
+  it("gives no clearing hint for a nullable or required field", async () => {
+    const view = setup({ id: 1 });
+    await view.user.clear(await screen.findByLabelText(/Power level/));
+    await view.user.clear(screen.getByLabelText(/Name/));
+    expect(screen.queryByText(HINT)).toBeNull();
+  });
+
+  it("gives no clearing hint in create", async () => {
+    const view = setup({
+      name: "quests",
+      initial: { title: "T", difficulty: "easy", due_on: "2026-03-14" },
+    });
+    await view.user.clear(await screen.findByLabelText(/Due on/));
+    expect(screen.queryByText(HINT)).toBeNull();
   });
 
   it("does not send If-Match when the resource has no conditional requests", async () => {
