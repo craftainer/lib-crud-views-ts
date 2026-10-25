@@ -31,7 +31,7 @@ describe("CardGridList", () => {
     await user.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Atlas 9", {}, wait);
     expect(screen.getByText("Page 2")).toBeInTheDocument();
-    expect(adapter.read()).toBe("page=2");
+    expect(adapter.read()).toBe("l_page=2");
     await user.click(screen.getByRole("button", { name: "Previous" }));
     await screen.findByText("Atlas 1", {}, wait);
 
@@ -41,14 +41,16 @@ describe("CardGridList", () => {
     // Sort dropdown: field, then direction, then back to the default order.
     await user.click(screen.getByRole("combobox", { name: "Sort by" }));
     await user.click(screen.getByRole("option", { name: "Power level" }));
-    await waitFor(() => expect(adapter.read()).toBe("sort=power_level"));
+    await waitFor(() => expect(adapter.read()).toBe("l_sort=power_level"));
     await user.click(screen.getByRole("combobox", { name: "Direction" }));
     await user.click(screen.getByRole("option", { name: "Descending" }));
-    await waitFor(() => expect(adapter.read()).toContain("sort=-power_level"));
+    await waitFor(() =>
+      expect(adapter.read()).toContain("l_sort=-power_level"),
+    );
     expect(stub.requests.at(-1)).toContain("sort=-power_level");
     await user.click(screen.getByRole("combobox", { name: "Direction" }));
     await user.click(screen.getByRole("option", { name: "Ascending" }));
-    await waitFor(() => expect(adapter.read()).toBe("sort=power_level"));
+    await waitFor(() => expect(adapter.read()).toBe("l_sort=power_level"));
     await user.click(screen.getByRole("combobox", { name: "Sort by" }));
     await user.click(screen.getByRole("option", { name: "Default order" }));
     await waitFor(() => expect(adapter.read()).toBe(""));
@@ -232,17 +234,19 @@ describe("filters in ResourceList", () => {
     expect(stub.requests.at(-1)).toContain("power_level__min=50");
     await user.click(screen.getByRole("combobox", { name: "Search in" }));
     await user.click(screen.getByRole("option", { name: "Owner id" }));
-    expect(adapter.read()).toBe("qf=owner_id");
+    expect(adapter.read()).toBe("l_qf=owner_id");
   });
 
   it("uses the window address by default", async () => {
-    window.history.replaceState(null, "", "/?size=5");
+    window.history.replaceState(null, "", "/?l_size=5&size=2");
     renderCrud(
       <ResourceList resource="heroes" variant="cards" columns={["name"]} />,
       { heroes: manyHeroes(8) },
     );
     await screen.findByText("Atlas 1", {}, wait);
     expect(screen.getAllByRole("article")).toHaveLength(5);
+    // The host's own `size` is not the list's.
+    expect(new URLSearchParams(window.location.search).get("size")).toBe("2");
     window.history.replaceState(null, "", "/");
   });
 });

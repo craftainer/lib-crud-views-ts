@@ -74,6 +74,21 @@ The edit waits for the promise and stays in a saving state (the cell stays
 in edit mode and the table is `aria-busy`); a rejection sends nothing and shows "Could not save: ..." like
 any other save error.
 
+### URL state
+
+A list keeps its filter, sort and paging state in the query string, through
+`useQueryState` (which `ResourceList` uses). The parameters carry a prefix,
+`l_` by default: `l_page`, `l_sort`, `l_q`, `l_qf`, `l_size`, `l_archived`,
+`l_drafts`, `l_f` and `l_f.<field>.<op>`. The host app's own `page`, `sort`,
+`q` and `size` are neither read nor deleted. Give each list on one page its own
+`prefix`. Links made before the `l_` default (for example `?page=3&q=ada`)
+no longer set the list's state: the list starts at its defaults. To keep the unprefixed names (`page`, `sort`, `q`, `size`, ...) that
+versions before the `l_` default used, opt out with `prefix=""`:
+
+```tsx
+<ResourceList resource="heroes" prefix="" />
+```
+
 ## Development
 
 Open the repository in the devcontainer, then run
