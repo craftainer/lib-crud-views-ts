@@ -61,6 +61,18 @@ describe("validateValue", () => {
     expect(validateValue(field({ kind: "array" }), ["x"])).toBeNull();
   });
 
+  it("counts string length in code points, not UTF-16 code units", () => {
+    const f = field({
+      constraints: constraints({ minLength: 2, maxLength: 2 }),
+    });
+    // Two emoji are four UTF-16 code units but two code points.
+    expect(validateValue(f, "\u{1F600}\u{1F600}")).toBeNull();
+    expect(validateValue(f, "\u{1F600}")).toBe("Must be at least 2 characters");
+    expect(validateValue(f, "\u{1F600}ab")).toBe(
+      "Must be at most 2 characters",
+    );
+  });
+
   it("collects the errors of a whole form", () => {
     const fields = [field({ name: "a", required: true }), field({ name: "b" })];
     expect(validateAll(fields, { b: "x" })).toEqual({ a: "Required" });

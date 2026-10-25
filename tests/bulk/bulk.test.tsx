@@ -54,6 +54,31 @@ describe("useBulkSelection", () => {
   });
 });
 
+describe("useBulkSelection with batched calls", () => {
+  it("toggles against the latest state, not a stale closure", () => {
+    const { result } = renderHook(() => useBulkSelection());
+    const staleToggle = result.current.toggle;
+    act(() => {
+      result.current.selectAllMatching();
+      staleToggle(7, [5, 6, 7]);
+    });
+    expect(result.current).toMatchObject({
+      allMatching: false,
+      selected: [5, 6],
+    });
+  });
+});
+
+describe("useBulkSelection no-ops", () => {
+  it("keeps the same selection object when unticking nothing", () => {
+    const { result } = renderHook(() => useBulkSelection());
+    act(() => result.current.toggle(1));
+    const before = result.current;
+    act(() => result.current.setPage([9], false));
+    expect(result.current).toBe(before);
+  });
+});
+
 describe("export helpers", () => {
   it("writes RFC 4180 CSV", () => {
     const fields = [field({ name: "a" }), field({ name: "b" })];
@@ -386,6 +411,22 @@ describe("BulkRecords", () => {
     expect(screen.getByText("1 selected")).toBeInTheDocument();
     view.rerender(<BulkRecords resource="heroes" />);
     await waitFor(() => expect(screen.queryByText(/ selected$/)).toBeNull());
+  });
+
+  it("forgets ticked records that left the data set", async () => {
+    const view = renderCrud(<BulkRecords resource="heroes" />, {
+      heroes: fresh(),
+      listDrafts: true,
+    });
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: "Select all on this page" }),
+    );
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    // A smaller page: record 2 is no longer listed, so it is no longer selected.
+    view.rerender(<BulkRecords resource="heroes" limit={1} />);
+    await waitFor(() =>
+      expect(screen.getByText("1 selected")).toBeInTheDocument(),
+    );
   });
 
   it("refreshes after a publish that fails part way", async () => {

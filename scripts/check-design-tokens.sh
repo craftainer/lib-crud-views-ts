@@ -30,7 +30,8 @@ scan() {
       local kind=""
       if [[ "$line" == *"$MARKER"* ]]; then
         local reason="${line#*"$MARKER"}"
-        reason="${reason//[[:space:]*\/]/}"
+        # A reason needs a letter or digit: comment closers and punctuation do not count.
+        reason="${reason//[^[:alnum:]]/}"
         if [ -z "$reason" ]; then
           echo "$file:$n: '$MARKER' needs a reason after it" >&2
           status=1
@@ -69,10 +70,12 @@ self_test() {
   echo 'const s = { mt: "-4px" };' >"$d/bad/negpx.tsx"
   echo 'a { margin: 0.5px; }' >"$d/bad/px.css"
   echo 'const w = "1px"; // design-tokens: allow' >"$d/bad/noreason.ts"
+  echo 'const w = <i sx={{ width: "1px" }} />; {/* design-tokens: allow */}' >"$d/bad/jsxnoreason.tsx"
+  echo 'a { margin: 1px; } /* design-tokens: allow ---- */' >"$d/bad/punct.css"
 
   scan "$d/ok" >/dev/null 2>&1 || { echo "self-test: clean fixtures were rejected" >&2; fail=1; }
   local f
-  for f in hex.css hex6.ts rgb.ts hsl.ts px.tsx negpx.tsx px.css noreason.ts color.stories.tsx; do
+  for f in hex.css hex6.ts rgb.ts hsl.ts px.tsx negpx.tsx px.css noreason.ts jsxnoreason.tsx punct.css color.stories.tsx; do
     rm -rf "$d/one" && mkdir -p "$d/one" && cp "$d/bad/$f" "$d/one/"
     if scan "$d/one" >/dev/null 2>&1; then
       echo "self-test: $f was not rejected" >&2

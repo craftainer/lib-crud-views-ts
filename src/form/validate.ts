@@ -40,10 +40,15 @@ export function validateValue(
     }
   }
   if (typeof value === "string") {
-    if (minLength !== undefined && value.length < minLength) {
+    // JSON Schema counts code points, not UTF-16 code units.
+    const length =
+      minLength === undefined && maxLength === undefined
+        ? 0
+        : [...value].length;
+    if (minLength !== undefined && length < minLength) {
       return `Must be at least ${minLength} characters`;
     }
-    if (maxLength !== undefined && value.length > maxLength) {
+    if (maxLength !== undefined && length > maxLength) {
       return `Must be at most ${maxLength} characters`;
     }
     if (pattern !== undefined && !matches(pattern, value)) {

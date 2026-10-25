@@ -9,7 +9,7 @@ import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import {
   FieldDisplay,
   ResourceGate,
@@ -57,6 +57,22 @@ export function BulkPanel({
     filters: toQueryFilters(filters ?? {}),
     limit,
   });
+  // Ticked records that left the data set (deleted elsewhere, a smaller page) are no longer selected.
+  const { data, isPending } = list;
+  const { selected, allMatching, setPage } = selection;
+  useEffect(() => {
+    if (isPending || data === undefined || allMatching) return;
+    const listed = data.map((row) => row[ready.resource.id_field] as number);
+    const stale = selected.filter((id) => !listed.includes(id));
+    if (stale.length > 0) setPage(stale, false);
+  }, [
+    data,
+    isPending,
+    selected,
+    allMatching,
+    setPage,
+    ready.resource.id_field,
+  ]);
   const fields =
     columns === undefined
       ? ready.fields.filter((f) => !SYSTEM_FIELDS.includes(f.name)).slice(0, 4)
