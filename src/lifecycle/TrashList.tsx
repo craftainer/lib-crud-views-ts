@@ -15,9 +15,13 @@ import type { ReactElement } from "react";
 import {
   FieldDisplay,
   ResourceGate,
+  useCrud,
   type ReadyResource,
   type RendererOverrides,
 } from "../core/index.ts";
+import { useFormat } from "../core/context.ts";
+import { parseInstant } from "../core/values.ts";
+import { clientId } from "../core/useResource.ts";
 import { useRestore } from "./mutations.ts";
 import { SYSTEM_FIELDS } from "./status.ts";
 
@@ -37,6 +41,19 @@ export function TrashPanel(props: TrashPanelProps): ReactElement | null {
   ) : null;
 }
 
+/** When a record was archived, in the viewer's locale and time zone. */
+function ArchivedAt({ value }: { readonly value: string }): ReactElement {
+  const { locale, timeZone } = useFormat();
+  const date = parseInstant(value);
+  if (date === null) return <>{value}</>;
+  const text = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone,
+  }).format(date);
+  return <time dateTime={date.toISOString()}>{text}</time>;
+}
+
 function TrashBody({
   ready,
   renderers,
@@ -45,11 +62,15 @@ function TrashBody({
 }: TrashPanelProps): ReactElement {
   // `archived_at` is no filter field, so the archived rows are picked out of
   // every page: with `includeArchived` alone they share pages with live rows.
+  // The key carries the client and caller scope, so another caller never sees these rows.
+  const { client, scope } = useCrud();
   const list = useQuery({
     queryKey: [
       "crud",
       `${ready.resource.name}@${ready.resource.api_version}`,
       "trash",
+      clientId(client),
+      scope,
     ],
     queryFn: async (): Promise<JsonObject[]> => {
       const rows: JsonObject[] = [];
@@ -110,7 +131,9 @@ function TrashBody({
                       />
                     </TableCell>
                   ))}
-                  <TableCell>{String(row["archived_at"])}</TableCell>
+                  <TableCell>
+                    <ArchivedAt value={row["archived_at"] as string} />
+                  </TableCell>
                   <TableCell align="right">
                     <Button
                       size="small"

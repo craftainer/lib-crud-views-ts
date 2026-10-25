@@ -5,6 +5,7 @@ import Typography from "@mui/material/Typography";
 import type { ReactElement } from "react";
 import { humanize } from "../fields.ts";
 import { useFormat } from "../context.ts";
+import { parseInstant } from "../values.ts";
 import type { DisplayRendererProps, FieldValue } from "../types.ts";
 
 function Empty(): ReactElement {
@@ -20,12 +21,6 @@ const isEmpty = (value: FieldValue): boolean =>
 
 function asText(value: FieldValue): string {
   return typeof value === "string" ? value : JSON.stringify(value);
-}
-
-/** Parses `YYYY-MM-DD` (UTC midnight) or an ISO datetime. */
-function asDate(value: FieldValue): Date | null {
-  const date = new Date(typeof value === "string" ? value : Number.NaN);
-  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export function StringDisplay({
@@ -84,7 +79,7 @@ export function BooleanDisplay({
 
 export function DateDisplay({ value }: DisplayRendererProps): ReactElement {
   const { locale } = useFormat();
-  const date = asDate(value);
+  const date = parseInstant(value);
   if (date === null) return <Empty />;
   // A date has no zone: format it in UTC so it never shifts a day.
   const text = new Intl.DateTimeFormat(locale, {
@@ -100,7 +95,7 @@ export function DateDisplay({ value }: DisplayRendererProps): ReactElement {
 
 export function DatetimeDisplay({ value }: DisplayRendererProps): ReactElement {
   const { locale, timeZone } = useFormat();
-  const date = asDate(value);
+  const date = parseInstant(value);
   if (date === null) return <Empty />;
   const text = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",

@@ -6,7 +6,7 @@ import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import { useEffect, useId, useRef, useState, type ReactElement } from "react";
 import { humanize } from "../fields.ts";
-import { emptyValue } from "../values.ts";
+import { emptyValue, parseInstant } from "../values.ts";
 import type { FieldValue, InputRendererProps } from "../types.ts";
 
 function common(props: InputRendererProps): {
@@ -192,8 +192,8 @@ export function DateInput(props: InputRendererProps): ReactElement {
 export function DatetimeInput(props: InputRendererProps): ReactElement {
   const { field, value, onChange } = props;
   const toLocal = (v: FieldValue): string => {
-    const date = new Date(text(v));
-    return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 16);
+    const date = parseInstant(v);
+    return date === null ? "" : date.toISOString().slice(0, 16);
   };
   return (
     <TextField

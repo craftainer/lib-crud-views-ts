@@ -204,6 +204,30 @@ describe("FilterBuilder", () => {
     expect(screen.queryByRole("group")).toBeNull();
   });
 
+  it("shows no row for a condition on a field the resource lacks", async () => {
+    const user = userEvent.setup();
+    const seen: FieldFilters[] = [];
+    renderReady((ready) => (
+      <FiltersHarness
+        initial={{ ghost: { eq: "x" }, power_level: { min: 4 } }}
+        onChange={(f) => seen.push(f)}
+      >
+        {(filters, set) => (
+          <FilterBuilder ready={ready} filters={filters} onChange={set} />
+        )}
+      </FiltersHarness>
+    ));
+    expect(await screen.findByLabelText("Power level from")).toHaveValue(4);
+    // The stale condition is listed, not hidden, and can be removed.
+    expect(screen.getAllByRole("group")).toHaveLength(2);
+    expect(screen.getByText(/ghost equals/)).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Remove condition 1" }),
+    );
+    expect(seen.at(-1)).toEqual({ power_level: { min: 4 } });
+    expect(screen.getAllByRole("group")).toHaveLength(1);
+  });
+
   it("shows existing filters, a UTC hint on datetime lists, and clears all", async () => {
     const user = userEvent.setup();
     const seen: FieldFilters[] = [];

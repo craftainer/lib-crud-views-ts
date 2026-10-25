@@ -1,10 +1,12 @@
-import { screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TrashList, TrashPanel } from "../../src/lifecycle/index.ts";
 import { lifecycleHeroes } from "../fixtures/routes/detail.ts";
 import { manyHeroes } from "../fixtures/routes/list.ts";
-import { renderCrud } from "../helpers.tsx";
+import { CrudProvider } from "../../src/core/index.ts";
+import { createStubClient } from "../fixtures/stub.ts";
+import { newQueryClient, renderCrud } from "../helpers.tsx";
 import { Ready } from "../ready.tsx";
 
 const fresh = lifecycleHeroes;
@@ -89,6 +91,53 @@ describe("TrashList", () => {
     expect(
       await screen.findAllByRole("button", { name: /^Restore/ }),
     ).toHaveLength(10);
+  });
+
+  it("shows when a record was archived in the viewer's locale and zone", async () => {
+    renderCrud(
+      <TrashList resource="heroes" />,
+      { heroes: fresh() },
+      { locale: "en-US", timeZone: "Asia/Tokyo" },
+    );
+    const when = await screen.findByText(/Feb 1, 2026/);
+    expect(when).toHaveAttribute("datetime", "2026-02-01T12:00:00.000Z");
+    expect(when).toHaveTextContent(/9:00\s?PM/);
+    expect(screen.queryByText("2026-02-01T12:00:00Z")).toBeNull();
+  });
+
+  it("keeps an unparseable archive time as it came", async () => {
+    const heroes = fresh().map((row) =>
+      row["id"] === 3 ? { ...row, archived_at: "sometime" } : row,
+    );
+    renderCrud(<TrashList resource="heroes" />, { heroes });
+    expect(await screen.findByText("sometime")).toBeInTheDocument();
+  });
+
+  it("does not show one caller's trash to another sharing the query cache", async () => {
+    const queryClient = newQueryClient();
+    const as = (
+      scope: string,
+      stub: ReturnType<typeof createStubClient>,
+    ): React.ReactElement => (
+      <CrudProvider
+        client={stub.client}
+        queryClient={queryClient}
+        scope={scope}
+      >
+        <TrashList resource="heroes" />
+      </CrudProvider>
+    );
+    const a = createStubClient({ heroes: fresh() });
+    const view = render(as("a", a));
+    expect(await screen.findByText("Old Stamp")).toBeInTheDocument();
+    // The second caller's trash never answers: it must wait, not borrow the first's rows.
+    const b = createStubClient({ list: "pending" });
+    view.rerender(as("b", b));
+    await waitFor(() =>
+      expect(b.requests.some((r) => r.includes("include_archived"))).toBe(true),
+    );
+    expect(screen.queryByText("Old Stamp")).toBeNull();
+    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
   });
 
   it("renders nothing for a resource without an archive", async () => {

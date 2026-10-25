@@ -101,6 +101,36 @@ describe("display renderers", () => {
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
 
+  it("reads a zoneless datetime as UTC, not as the browser's time", () => {
+    const zone = process.env["TZ"];
+    process.env["TZ"] = "America/Los_Angeles";
+    try {
+      for (const value of [
+        "2026-01-02T09:30:00",
+        "2026-01-02T09:30:00Z[UTC]",
+      ]) {
+        const { unmount } = renderCrud(
+          <FieldDisplay
+            field={field({ kind: "datetime" })}
+            resource="r"
+            value={value}
+          />,
+          {},
+          { locale: "en-US", timeZone: "UTC" },
+        );
+        expect(screen.getByText(/Jan 2, 2026/)).toHaveAttribute(
+          "datetime",
+          "2026-01-02T09:30:00.000Z",
+        );
+        expect(screen.getByText(/9:30\s?AM/)).toBeInTheDocument();
+        unmount();
+      }
+    } finally {
+      if (zone === undefined) delete process.env["TZ"];
+      else process.env["TZ"] = zone;
+    }
+  });
+
   it("humanizes enum values and lists array items", () => {
     show({ kind: "enum" }, "very_hard");
     expect(screen.getByText("Very hard")).toBeInTheDocument();

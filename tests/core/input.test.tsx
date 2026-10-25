@@ -163,6 +163,8 @@ describe("input renderers", () => {
     expect(a.emitted.at(-1)).toBeNull();
     await a.user.type(input, "2026-05-06T07:08");
     expect(a.emitted.at(-1)).toBe("2026-05-06T07:08:00.000Z");
+    setup({ kind: "datetime", label: "Zoneless" }, "2026-01-02T09:30:00");
+    expect(screen.getByLabelText("Zoneless")).toHaveValue("2026-01-02T09:30");
     setup({ kind: "datetime", label: "Bad" }, "garbage", { error: "no" });
     expect(screen.getByLabelText("Bad")).toHaveValue("");
   });

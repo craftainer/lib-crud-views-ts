@@ -168,7 +168,11 @@ export function DataTableList({
   const [previous, setPrevious] = useState(list.data);
   if (list.data !== undefined && list.data !== previous) setPrevious(list.data);
   const data = list.data ?? previous;
-  const rows = (data ?? []).slice(0, pageSize) as Row[];
+  // Stable while the data and page size are: a new array makes the grid reset its rows (and any open edit).
+  const rows = useMemo(
+    () => (data ?? []).slice(0, pageSize) as Row[],
+    [data, pageSize],
+  );
   const hasNextPage = (data?.length ?? 0) > pageSize;
   // The server reports no total, so the grid gets the least count that is true:
   // everything up to this page, plus one more row when a next page exists.
