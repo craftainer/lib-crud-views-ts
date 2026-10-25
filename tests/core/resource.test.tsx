@@ -68,7 +68,8 @@ describe("CrudProvider", () => {
     expect(result.current).toMatchObject({
       client: s.client,
       queryClient,
-      scope: "u1",
+      namespace: { client: "http://stub.test", scope: "u1" },
+      namespaceError: undefined,
       locale: "fr",
       timeZone: "UTC",
     });
@@ -220,8 +221,14 @@ describe("useResource", () => {
 
   it("keeps two api versions in separate cache entries", async () => {
     const v1 = await ready({}, "heroes", "v1");
+    expect(v1.view.queryName).toBe("heroes@v1");
+    const h = hookWith({}, "heroes");
+    await waitFor(() => expect(h.result.current.status).toBe("ready"));
+    expect((h.result.current as ReadyResource).queryName).toBe("heroes");
     expect(
-      v1.queryClient.getQueryCache().findAll({ queryKey: ["crud", "_handle"] }),
+      v1.queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ["crud-views", "handle"] }),
     ).toHaveLength(1);
   });
 });

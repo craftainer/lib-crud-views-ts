@@ -15,13 +15,11 @@ import type { ReactElement } from "react";
 import {
   FieldDisplay,
   ResourceGate,
-  useCrud,
   type ReadyResource,
   type RendererOverrides,
 } from "../core/index.ts";
 import { useFormat } from "../core/context.ts";
 import { parseInstant } from "../core/values.ts";
-import { clientId } from "../core/useResource.ts";
 import { useRestore } from "./mutations.ts";
 import { SYSTEM_FIELDS } from "./status.ts";
 
@@ -62,16 +60,12 @@ function TrashBody({
 }: TrashPanelProps): ReactElement {
   // `archived_at` is no filter field, so the archived rows are picked out of
   // every page: with `includeArchived` alone they share pages with live rows.
-  // The key carries the client and caller scope, so another caller never sees these rows.
-  const { client, scope } = useCrud();
+  // The SDK has no key builder for the trash, so this follows its layout
+  // `["crud", client, resource, scope, kind]`: another caller never sees these
+  // rows and invalidating the resource (a key prefix) refreshes them.
+  const { namespace: ns, queryName } = ready;
   const list = useQuery({
-    queryKey: [
-      "crud",
-      `${ready.resource.name}@${ready.resource.api_version}`,
-      "trash",
-      clientId(client),
-      scope,
-    ],
+    queryKey: ["crud", ns.client, queryName, ns.scope, "trash"],
     queryFn: async (): Promise<JsonObject[]> => {
       const rows: JsonObject[] = [];
       for await (const row of ready.handle.iterAll({

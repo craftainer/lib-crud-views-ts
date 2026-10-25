@@ -3,4 +3,4 @@ allowBuilds:
   # packages; its postinstall is only a fast-path optimisation.
   esbuild: false
 minimumReleaseAgeExclude:
-  - "@craftainer/crud-sdk@0.1.0"
+  - "@craftainer/crud-sdk@0.2.0"

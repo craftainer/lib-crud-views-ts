@@ -97,6 +97,12 @@ export interface StubOptions {
   readonly listDrafts?: boolean;
   /** Edits a copy of the manifest before it is served (tests of gated features). */
   readonly manifestPatch?: (manifest: typeof stubManifest) => void;
+  /** The client's `id` in query keys; default: its `baseUrl`. */
+  readonly id?: string;
+  /** A bearer token: the client's caller scope is a hash of it (else `"anon"`). */
+  readonly token?: string;
+  /** A token provider that throws, so `client.namespace()` rejects. */
+  readonly tokenError?: unknown;
 }
 
 export interface Stub {
@@ -220,6 +226,15 @@ export function createStubClient(options: StubOptions = {}): Stub {
     client: createClient({
       baseUrl: "http://stub.test",
       fetch: stubFetch as typeof fetch,
+      ...(options.id === undefined ? {} : { id: options.id }),
+      ...(options.token === undefined && options.tokenError === undefined
+        ? {}
+        : {
+            tokenProvider: () => {
+              if (options.tokenError !== undefined) throw options.tokenError;
+              return options.token;
+            },
+          }),
     }),
     requests,
     tables,
