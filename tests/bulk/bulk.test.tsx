@@ -1,6 +1,7 @@
-import { BadRequest } from "@craftainer/crud-sdk";
+import { BadRequest, type JsonObject } from "@craftainer/crud-sdk";
 import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   BulkLimitError,
@@ -8,6 +9,7 @@ import {
   BulkRecords,
   BulkToolbar,
   describeBulkError,
+  PartialPublishError,
   downloadText,
   toCsv,
   useBulkSelection,
@@ -132,6 +134,9 @@ describe("describeBulkError", () => {
       "400 Bad Request. A bulk call touches at most 1000 records; if the filter matches more, narrow it.",
     );
     expect(describeBulkError(new Error("down"), 1000)).toBe("down");
+    expect(
+      describeBulkError(new PartialPublishError([1, 3], 5, 4, bad), 1000),
+    ).toBe("Published 2 of 5; failed at 4: 400 Bad Request");
     expect(new BulkLimitError(5).message).toMatch(/More than 5/);
   });
 });
@@ -429,28 +434,39 @@ describe("BulkRecords", () => {
     );
   });
 
-  it("refreshes after a publish that fails part way", async () => {
-    const heroes = fresh().map((row) => ({ ...row, is_draft: true }));
-    const view = renderCrud(
-      <Ready>
-        {(ready) => {
-          const handle = new Proxy(ready.handle, {
-            get: (target, key) => {
-              if (key === "publish") {
-                return (id: number) =>
-                  id === 2
-                    ? Promise.reject(new Error("publish failed"))
-                    : target.publish(id);
-              }
-              const value = Reflect.get(target, key, target) as unknown;
-              return typeof value === "function" ? value.bind(target) : value;
-            },
-          });
-          return <BulkPanel ready={{ ...ready, handle }} />;
-        }}
-      </Ready>,
-      { heroes, listDrafts: true },
-    );
+  /** A panel whose `publish` rejects for id 2 while `failing.on` holds. */
+  const failingPublish = (
+    failing: { on: boolean; reason?: unknown },
+    props: Partial<ComponentProps<typeof BulkPanel>> = {},
+  ) => (
+    <Ready>
+      {(ready) => {
+        const handle = new Proxy(ready.handle, {
+          get: (target, key) => {
+            if (key === "publish") {
+              return (id: number) =>
+                id === 2 && failing.on
+                  ? Promise.reject(
+                      failing.reason ?? new Error("publish failed"),
+                    )
+                  : target.publish(id);
+            }
+            const value = Reflect.get(target, key, target) as unknown;
+            return typeof value === "function" ? value.bind(target) : value;
+          },
+        });
+        return <BulkPanel ready={{ ...ready, handle }} {...props} />;
+      }}
+    </Ready>
+  );
+  const allDrafts = (): JsonObject[] =>
+    fresh().map((row) => ({ ...row, is_draft: true }));
+
+  it("refreshes after a publish that fails part way, and says how far it got", async () => {
+    const view = renderCrud(failingPublish({ on: true }), {
+      heroes: allDrafts(),
+      listDrafts: true,
+    });
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select all on this page" }),
     );
@@ -461,9 +477,70 @@ describe("BulkRecords", () => {
     const before = lists();
     await userEvent.click(screen.getByRole("button", { name: "Publish" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "publish failed",
+      "Published 1 of 2; failed at 2: publish failed",
     );
     await waitFor(() => expect(lists()).toBeGreaterThan(before));
+  });
+
+  it("reports a rejection that is not an Error", async () => {
+    renderCrud(failingPublish({ on: true, reason: "boom" }), {
+      heroes: allDrafts(),
+      listDrafts: true,
+    });
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: "Select all on this page" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Published 1 of 2; failed at 2: boom",
+    );
+  });
+
+  it("unticks the published ids so a retry covers only the rest", async () => {
+    const failing = { on: true };
+    const view = renderCrud(failingPublish(failing), {
+      heroes: allDrafts(),
+      listDrafts: true,
+    });
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: "Select all on this page" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+    await screen.findByText(/Published 1 of 2; failed at 2/);
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Select record 1" }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Select record 2" }),
+    ).toBeChecked();
+
+    failing.on = false;
+    view.stub.requests.length = 0;
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+    expect(await screen.findByText("Published 1 record.")).toBeInTheDocument();
+    expect(view.stub.requests).toContain(`POST ${BASE}/publish?id=2`);
+    expect(view.stub.requests).not.toContain(`POST ${BASE}/publish?id=1`);
+  });
+
+  it("keeps an all-matching selection after a partial publish", async () => {
+    renderCrud(
+      failingPublish({ on: true }, { filters: { name: { icontains: "e" } } }),
+      { heroes: allDrafts(), listDrafts: true },
+    );
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: "Select record 1" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Select all matching the filter" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Published 1 of 2; failed at 2: publish failed",
+    );
+    expect(
+      screen.getByText("All records matching the filter are selected"),
+    ).toBeInTheDocument();
   });
 
   it("offers only the actions asked for and only those the manifest allows", async () => {

@@ -12,7 +12,11 @@ import {
 } from "../core/index.ts";
 import { ConfirmDialog } from "../lifecycle/ConfirmDialog.tsx";
 import { useInvalidateResource } from "../lifecycle/mutations.ts";
-import { BulkLimitError, describeBulkError } from "./errors.ts";
+import {
+  BulkLimitError,
+  PartialPublishError,
+  describeBulkError,
+} from "./errors.ts";
 import { downloadText, toCsv } from "./export.ts";
 import type { BulkSelection } from "./selection.ts";
 
@@ -160,8 +164,23 @@ export function BulkToolbar({
         const drafts = (await records()).filter(
           (row) => row["is_draft"] === true,
         );
+        const published: number[] = [];
         for (const row of drafts) {
-          await ready.handle.publish(row[id_field] as number);
+          const id = row[id_field] as number;
+          try {
+            await ready.handle.publish(id);
+          } catch (caught) {
+            // Untick what went through, so a retry covers only the rest.
+            // ("All matching" refetches the drafts, so it needs no change.)
+            if (!selection.allMatching) selection.setPage(published, false);
+            throw new PartialPublishError(
+              [...published],
+              drafts.length,
+              id,
+              caught instanceof Error ? caught : new Error(String(caught)),
+            );
+          }
+          published.push(id);
         }
         return drafts.length;
       },
