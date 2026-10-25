@@ -54,8 +54,8 @@ it. It contains:
 - a `release-check` that always installs the `dist/` tarball into a scratch
   project and imports every `exports` entry, and when publishing is on also
   installs the version from the registry. A version that is not on the
-  registry yet is a notice, not a failure, because a staged release is not
-  installable until it is approved;
+  registry fails verification, including a staged release that is not
+  approved yet (re-run the job after approval);
 - the GPL-3.0 license, matching the other templates, and a sync manifest
   that classifies the scaffold (`package.json`, `tsconfig*.json`,
   `tsdown.config.ts`, `vitest.config.ts`, `src/`, `tests/`,
@@ -81,10 +81,9 @@ and deletes the token, and later releases go through OIDC.
   fall back to the pinned Node image there. The Node version then has one
   source (`.devcontainer/Dockerfile`), but a package's `engines.node` has to
   be kept in step by hand.
-- A first release that is staged and not yet approved passes
-  `release-check` on the tarball alone; the registry install is verified
-  only on later releases or after approval, so a staged release that is
-  never approved is not caught by the release.
+- A first release that is staged and not yet approved fails the registry
+  verification (the job runs without secrets and cannot tell a staged
+  upload from a lost one); a maintainer approves it and re-runs that job.
 - `npm stage` is new and its CLI may still change; the scripts pin npm
   exactly and Renovate bumps it.
 - The tool versions in `package.json` are instance-owned, so a template-side
