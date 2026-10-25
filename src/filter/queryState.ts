@@ -95,7 +95,10 @@ function parseScalar(
     case "number":
     case "integer": {
       const n = Number(text);
-      return text.trim() !== "" && Number.isFinite(n) ? n : undefined;
+      if (text.trim() === "" || !Number.isFinite(n)) return undefined;
+      return field.kind === "integer" && !Number.isSafeInteger(n)
+        ? undefined
+        : n;
     }
     case "boolean":
       return text === "true" ? true : text === "false" ? false : undefined;

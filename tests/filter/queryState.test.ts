@@ -48,6 +48,15 @@ describe("operands", () => {
     expect(parseOperand(byName("power_level"), "in", "x")).toBeUndefined();
   });
 
+  it("rejects fractions for integer fields but keeps them for numbers", () => {
+    const whole = { ...byName("power_level"), kind: "integer" as const };
+    const loose = { ...byName("power_level"), kind: "number" as const };
+    expect(parseOperand(whole, "min", "5")).toBe(5);
+    expect(parseOperand(whole, "min", "5.5")).toBeUndefined();
+    expect(parseOperand(whole, "in", "1, 2.5, 3")).toEqual([1, 3]);
+    expect(parseOperand(loose, "min", "5.5")).toBe(5.5);
+  });
+
   it("keeps commas and backslashes inside list items through a round trip", () => {
     const items = ["Smith, John", "Doe", "a\\b"];
     const text = formatOperand(items);

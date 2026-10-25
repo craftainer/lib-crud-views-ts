@@ -22,36 +22,42 @@ export interface BulkSelection {
 
 /** Selection state for a list. Ticking a row after "select all matching" returns to explicit ids. */
 export function useBulkSelection(): BulkSelection {
-  const [selected, setSelected] = useState<readonly number[]>([]);
-  const [allMatching, setAllMatching] = useState(false);
-  const toggle = useCallback(
-    (id: number, visible: readonly number[] = []) => {
-      setAllMatching(false);
-      setSelected((current) => {
-        // Every visible row showed ticked: unticking one leaves the others ticked.
-        if (allMatching) return visible.filter((x) => x !== id);
-        return current.includes(id)
-          ? current.filter((x) => x !== id)
-          : [...current, id];
-      });
-    },
-    [allMatching],
-  );
+  // One state object, so every update reads the latest selection and mode.
+  const [state, setState] = useState<{
+    readonly selected: readonly number[];
+    readonly allMatching: boolean;
+  }>({ selected: [], allMatching: false });
+  const toggle = useCallback((id: number, visible: readonly number[] = []) => {
+    setState((current) => ({
+      allMatching: false,
+      // Every visible row showed ticked: unticking one leaves the others ticked.
+      selected: current.allMatching
+        ? visible.filter((x) => x !== id)
+        : current.selected.includes(id)
+          ? current.selected.filter((x) => x !== id)
+          : [...current.selected, id],
+    }));
+  }, []);
   const setPage = useCallback((ids: readonly number[], on: boolean) => {
-    setAllMatching(false);
-    setSelected((current) => {
-      const rest = current.filter((x) => !ids.includes(x));
-      return on ? [...rest, ...ids] : rest;
+    setState((current) => {
+      const rest = current.selected.filter((x) => !ids.includes(x));
+      // Nothing to untick: keep the state object, so consumers do not re-render.
+      if (
+        !on &&
+        !current.allMatching &&
+        rest.length === current.selected.length
+      )
+        return current;
+      return { allMatching: false, selected: on ? [...rest, ...ids] : rest };
     });
   }, []);
   const selectAllMatching = useCallback(() => {
-    setSelected([]);
-    setAllMatching(true);
+    setState({ selected: [], allMatching: true });
   }, []);
   const clear = useCallback(() => {
-    setSelected([]);
-    setAllMatching(false);
+    setState({ selected: [], allMatching: false });
   }, []);
+  const { selected, allMatching } = state;
   return useMemo(
     () => ({
       selected,
