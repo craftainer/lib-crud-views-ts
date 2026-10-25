@@ -56,7 +56,7 @@ const client = createClient({ baseUrl: "https://api.example.com" });
 
 Every query is keyed `["crud", client, resource, scope, kind, ...]` (the
 manifest: `["crud", client, "_manifest", scope]`), as in `@craftainer/crud-sdk`
-0.4: `client` is `CrudClient.id` (default: its `baseUrl`) and `scope` the
+0.4 and 0.5: `client` is `CrudClient.id` (default: its `baseUrl`) and `scope` the
 caller, from `client.namespace()` (`"anon"` or a hash of the bearer token).
 Two clients or callers on one `QueryClient` never share an entry. Give two
 clients that share a `baseUrl` distinct `id`s, and remount `CrudProvider` (a
@@ -67,6 +67,12 @@ known. The key parts for your own SDK calls are on the ready resource:
 `["crud", client, resource, scope, "trash"]` under the same prefix: invalidating
 the resource refreshes it. It needs `@craftainer/crud-sdk` 0.3 or later
 (`onlyArchived`).
+
+### Supported `@craftainer/crud-sdk` versions
+
+`^0.4.0 || ^0.5.0`. From 0.5 the SDK refuses to send an `Authorization` header
+over plain `http` to a non-loopback host (`InsecureTransportError`): use
+`https`, or pass `allowInsecureHttp: true` to `createClient` (0.5 only).
 
 ### Inline edit and ETags
 

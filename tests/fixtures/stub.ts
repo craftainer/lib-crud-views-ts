@@ -224,7 +224,7 @@ export function createStubClient(options: StubOptions = {}): Stub {
 
   return {
     client: createClient({
-      baseUrl: "http://stub.test",
+      baseUrl: "https://stub.test",
       fetch: stubFetch as typeof fetch,
       ...(options.id === undefined ? {} : { id: options.id }),
       ...(options.token === undefined && options.tokenError === undefined

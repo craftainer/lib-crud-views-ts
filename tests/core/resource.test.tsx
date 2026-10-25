@@ -68,7 +68,7 @@ describe("CrudProvider", () => {
     expect(result.current).toMatchObject({
       client: s.client,
       queryClient,
-      namespace: { client: "http://stub.test", scope: "u1" },
+      namespace: { client: "https://stub.test", scope: "u1" },
       namespaceError: undefined,
       locale: "fr",
       timeZone: "UTC",
