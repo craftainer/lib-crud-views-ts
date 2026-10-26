@@ -114,6 +114,24 @@ versions before the `l_` default used, opt out with `prefix=""`:
 <ResourceList resource="heroes" prefix="" />
 ```
 
+### Key field
+
+A record's id is read from the manifest's `resource.id_field`, so a resource
+whose key is not called `id` works. The key is a filterable field in the
+manifest, but it is not something a person filters by: `FilterBar`,
+`FilterBuilder` and the URL decoder leave it out.
+
+### Bulk actions
+
+Bulk publish runs one request per draft, in order. If one fails, the toolbar
+reports "Published N of M; failed at <id>: <reason>" and unticks the published
+records on the current page, so a retry covers only the rest (under "all
+matching" the drafts are refetched, so the published ones drop out by
+themselves). The failure is a `PartialPublishError` (exported; `published`,
+`total`, `failedId`, and the original error as `cause`). A bulk call that matches more records than the
+manifest's `bulk.max_matched` is refused by the server with `400`; the toolbar
+says to narrow the filter.
+
 ### CSV export
 
 `toCsv` (bulk export) guards against
