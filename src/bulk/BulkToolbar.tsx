@@ -43,6 +43,14 @@ export interface BulkToolbarProps {
 const ALL: readonly BulkAction[] = ["delete", "export", "publish"];
 
 /**
+ * Whether the bulk list shows drafts: `BulkPanel` lists them (so Publish can
+ * act on them) exactly when the resource has drafts. "Delete all matching"
+ * sends the same flag, so it deletes the rows the list shows, no more.
+ */
+export const listsDrafts = (ready: ReadyResource): boolean =>
+  ready.capabilities.draft_publish;
+
+/**
  * Bulk calls use filters, never `?id=` with filters (the server rejects that):
  * the ticked ids become `id__in`, "all matching" is the list's own filters.
  */
@@ -133,8 +141,14 @@ export function BulkToolbar({
       true,
       (n) => `Deleted ${n} ${n === 1 ? "record" : "records"}.`,
       async () => {
+        // The server deletes drafts too unless told otherwise: with drafts
+        // hidden from the list, "all matching" must not reach them. Ticked
+        // ids name their rows, so only "all matching" needs the flag.
         const result: BulkResult = await ready.handle.deleteMany(
           serverFilters(ready, selection, filters),
+          selection.allMatching
+            ? { includeUnpublished: listsDrafts(ready) }
+            : undefined,
         );
         return result.matched;
       },

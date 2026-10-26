@@ -261,7 +261,9 @@ describe("BulkRecords", () => {
     );
     await userEvent.click(within_dialog_button("Delete"));
     expect(await screen.findByText("Deleted 1 record.")).toBeInTheDocument();
-    expect(stub.requests).toContain(`DELETE ${BASE}?name__icontains=captain`);
+    expect(stub.requests).toContain(
+      `DELETE ${BASE}?name__icontains=captain&include_unpublished=true`,
+    );
   });
 
   it("explains the limit when the server answers 400", async () => {
@@ -613,6 +615,42 @@ describe("BulkToolbar", () => {
       "More than 1000 records match",
     );
     expect(stub.requests.some((r) => r.startsWith("DELETE"))).toBe(false);
+  });
+
+  it("sends include_unpublished=false for all-matching when drafts are hidden, and nothing for ticked ids", async () => {
+    const view = (allMatching: boolean) => (
+      <Ready>
+        {(ready) => (
+          <BulkToolbar
+            ready={{
+              ...ready,
+              capabilities: { ...ready.capabilities, draft_publish: false },
+            }}
+            selection={selectionOf(
+              allMatching ? { allMatching: true } : { selected: [1] },
+            )}
+            filters={{ name: { icontains: "captain" } }}
+          />
+        )}
+      </Ready>
+    );
+    const first = renderCrud(view(true));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Delete" }),
+    );
+    await userEvent.click(within_dialog_button("Delete"));
+    await screen.findByText("Deleted 1 record.");
+    expect(first.stub.requests).toContain(
+      `DELETE ${BASE}?name__icontains=captain&include_unpublished=false`,
+    );
+    first.unmount();
+    const second = renderCrud(view(false));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Delete" }),
+    );
+    await userEvent.click(within_dialog_button("Delete"));
+    await screen.findByText("Deleted 1 record.");
+    expect(second.stub.requests).toContain(`DELETE ${BASE}?id__in=1`);
   });
 
   it("refuses an all-matching call once the filters are gone", async () => {

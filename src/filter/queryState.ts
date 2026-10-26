@@ -23,7 +23,11 @@ export interface SortKey {
 /** Everything a list view reads: filters, quick search, sort, paging and the visibility toggles. */
 export interface QueryState {
   readonly filters: FieldFilters;
-  /** Quick-search text (`icontains` on `qField`); empty means off. */
+  /**
+   * Quick-search text: the `icontains` operand of `filters[qField]`, read back
+   * out of `filters` (one source of truth); empty means off. Writing it is
+   * `setQuickSearch`, which edits `filters`.
+   */
   readonly q: string;
   readonly qField: string | undefined;
   readonly sort: readonly SortKey[];
@@ -238,7 +242,7 @@ export function encodeState(
     for (const [key, value] of entries)
       params.set(`${ctx.prefix}${key}`, value);
   }
-  if (state.q !== "") params.set(n.q, state.q);
+  // The quick-search text is a filter (`f.<qField>.icontains`): no `q` of its own.
   if (state.qField !== undefined && state.qField !== base0.qField)
     params.set(n.qf, state.qField);
   if (sortText(state.sort) !== sortText(base0.sort))
@@ -303,10 +307,19 @@ export function decodeState(search: string, ctx: QueryContext): QueryState {
     (f) => f.name === qField,
   );
   const size = positiveInt(params.get(n.size));
+  const field = searchable ? (qField as string) : base.qField;
+  // A link from before the search was a filter carries `q`: fold it in, unless
+  // the filter on that field already says something.
+  const legacy = params.get(n.q) ?? "";
+  if (legacy !== "" && field !== undefined && !hasQuickText(filters, field))
+    filters = {
+      ...filters,
+      [field]: withOp(filters[field], "icontains", legacy),
+    };
   return {
     filters,
-    q: params.get(n.q) ?? "",
-    qField: searchable ? (qField as string) : base.qField,
+    q: quickText(filters, field),
+    qField: field,
     sort,
     page: positiveInt(params.get(n.page)) ?? 1,
     pageSize: Math.min(size ?? base.pageSize, ctx.maxPageSize),
@@ -317,13 +330,43 @@ export function decodeState(search: string, ctx: QueryContext): QueryState {
 
 // ---- SDK query -----------------------------------------------------------
 
-/** The filters including the quick search, as per-field state. */
+const hasQuickText = (
+  filters: FieldFilters,
+  field: string | undefined,
+): boolean => quickText(filters, field) !== "";
+
+/** The quick-search text: `field`'s `icontains` operand, or `""`. */
+export function quickText(
+  filters: FieldFilters,
+  field: string | undefined,
+): string {
+  const operand =
+    field === undefined ? undefined : filters[field]?.["icontains"];
+  return typeof operand === "string" ? operand : "";
+}
+
+/** `filters` with `field`'s `icontains` set to `text` (removed when empty): the quick search writes the filter itself. */
+export function withQuickText(
+  filters: FieldFilters,
+  field: string | undefined,
+  text: string,
+): FieldFilters {
+  if (field === undefined) return filters;
+  const { [field]: _old, ...rest } = filters;
+  const next = withOp(
+    filters[field],
+    "icontains",
+    text === "" ? undefined : text,
+  );
+  return next === undefined ? rest : { ...rest, [field]: next };
+}
+
+/**
+ * The filters the list queries with. The quick search is part of them (it is
+ * the `icontains` filter of its field), so this is `state.filters`.
+ */
 export function effectiveFilters(state: QueryState): FieldFilters {
-  if (state.q === "" || state.qField === undefined) return state.filters;
-  return {
-    ...state.filters,
-    [state.qField]: withOp(state.filters[state.qField], "icontains", state.q),
-  };
+  return state.filters;
 }
 
 /**
@@ -346,4 +389,4 @@ export function toCrudQuery(state: QueryState, paged: boolean): CrudQuery {
 
 /** Whether any filter or quick search narrows the list. */
 export const isFiltered = (state: QueryState): boolean =>
-  state.q !== "" || filterEntries(state.filters).length > 0;
+  filterEntries(state.filters).length > 0;
