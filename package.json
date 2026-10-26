@@ -2,7 +2,7 @@
   "name": "@craftainer/crud-views",
   "version": "0.0.0",
   "description": "Manifest-driven CRUD views for React on MUI: provider, resource hook, field-renderer registry and layout shells (list, form, detail, stats views build on them).",
-  "license": "GPL-3.0-or-later",
+  "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/craftainer/lib-crud-views-ts.git"
