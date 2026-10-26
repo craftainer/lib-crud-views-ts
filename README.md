@@ -70,9 +70,11 @@ the resource refreshes it. It needs `@craftainer/crud-sdk` 0.3 or later
 
 ### Supported `@craftainer/crud-sdk` versions
 
-`^0.4.0 || ^0.5.0 || ^0.6.0`. Bulk delete of "all matching" honours drafts only from 0.6 (see "Bulk actions"). From 0.5 the SDK refuses to send an `Authorization` header
+`^0.4.0 || ^0.5.0 || ^0.6.0`. From 0.5 the SDK refuses to send an `Authorization` header
 over plain `http` to a non-loopback host (`InsecureTransportError`): use
 `https`, or pass `allowInsecureHttp: true` to `createClient` (0.5 only).
+
+Bulk delete of "all matching" honours drafts only from 0.6 (see "Bulk actions").
 
 ### Inline edit and ETags
 
