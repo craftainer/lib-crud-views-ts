@@ -195,7 +195,10 @@ describe("filters in ResourceList", () => {
     await screen.findByText("Atlas 1", {}, wait);
 
     await user.type(screen.getByLabelText("Search owner id"), "stub");
-    await waitFor(() => expect(adapter.read()).toBe("h.q=stub"), wait);
+    await waitFor(
+      () => expect(adapter.read()).toBe("h.f=&h.f.owner_id.icontains=stub"),
+      wait,
+    );
     expect(stub.requests.at(-1)).toContain("owner_id__icontains=stub");
 
     await user.click(screen.getByRole("checkbox", { name: "Yes" }));
@@ -219,6 +222,39 @@ describe("filters in ResourceList", () => {
     expect(
       screen.getByRole("region", { name: "Filter builder" }),
     ).toBeInTheDocument();
+  }, 30_000);
+
+  it("keeps quick search and the filter bar in sync on one icontains filter", async () => {
+    const adapter = memoryUrlAdapter();
+    const user = userEvent.setup();
+    const { stub } = renderCrud(
+      <ResourceList
+        resource="heroes"
+        variant="cards"
+        urlAdapter={adapter}
+        filters={["quick", "bar"]}
+        barFields={["name"]}
+        columns={["name"]}
+      />,
+      { heroes: manyHeroes(12) },
+    );
+    await screen.findByText("Atlas 1", {}, wait);
+
+    await user.type(screen.getByLabelText("Search name"), "Atlas");
+    await waitFor(
+      () => expect(screen.getByLabelText("Name")).toHaveValue("Atlas"),
+      wait,
+    );
+    expect(adapter.read()).toContain("l_f.name.icontains=Atlas");
+    expect(stub.requests.at(-1)).toContain("name__icontains=Atlas");
+
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Beacon");
+    await waitFor(
+      () => expect(screen.getByLabelText("Search name")).toHaveValue("Beacon"),
+      wait,
+    );
+    expect(adapter.read()).not.toContain("Atlas");
   }, 30_000);
 
   it("applies default filters and the quick-search field choice", async () => {

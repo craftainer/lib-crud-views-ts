@@ -5,6 +5,7 @@ import {
   PROFILE,
   createClient,
   type JsonObject,
+  type Middleware,
 } from "@craftainer/crud-sdk";
 import manifest from "./manifest.json" with { type: "json" };
 import { deleteRoutes } from "./routes/delete.ts";
@@ -101,6 +102,8 @@ export interface StubOptions {
   readonly manifestPatch?: (manifest: typeof stubManifest) => void;
   /** The client's `id` in query keys; default: its `baseUrl`. */
   readonly id?: string;
+  /** SDK middleware for the client (a cache with `autoIfMatch`, a request spy). */
+  readonly middleware?: readonly Middleware[];
   /** A bearer token: the client's caller scope is a hash of it (else `"anon"`). */
   readonly token?: string;
   /** A token provider that throws, so `client.namespace()` rejects. */
@@ -230,6 +233,9 @@ export function createStubClient(options: StubOptions = {}): Stub {
       baseUrl: "https://stub.test",
       fetch: stubFetch as typeof fetch,
       ...(options.id === undefined ? {} : { id: options.id }),
+      ...(options.middleware === undefined
+        ? {}
+        : { middleware: options.middleware }),
       ...(options.token === undefined && options.tokenError === undefined
         ? {}
         : {

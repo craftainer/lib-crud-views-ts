@@ -69,7 +69,9 @@ describe("useQueryState", () => {
     await click("archived");
     await click("drafts");
     const written = new URLSearchParams(adapter.read());
-    expect(written.get("l_q")).toBe("ada");
+    // The search text is the field's filter; the field switch leaves it be.
+    expect(written.get("l_f.name.icontains")).toBe("ada");
+    expect(written.has("l_q")).toBe(false);
     expect(written.get("l_qf")).toBe("owner_id");
     expect(written.get("l_sort")).toBe("-name");
     expect(written.get("l_size")).toBe("50");
@@ -77,9 +79,7 @@ describe("useQueryState", () => {
     expect(written.get("l_drafts")).toBe("1");
     expect(written.get("tab")).toBe("1");
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "owner_id__icontains",
-      ),
+      expect(screen.getByRole("status")).toHaveTextContent("name__icontains"),
     );
     await click("reset");
     expect(adapter.read()).toBe("tab=1");
@@ -113,7 +113,7 @@ describe("useQueryState", () => {
     await user.click(screen.getByRole("button", { name: "page" }));
     const written = new URLSearchParams(adapter.read());
     expect(written.get("l_page")).toBe("3");
-    expect(written.get("l_q")).toBe("ada");
+    expect(written.get("l_f.name.icontains")).toBe("ada");
     for (const [key, value] of new URLSearchParams(host))
       expect(written.get(key)).toBe(value);
     await user.click(screen.getByRole("button", { name: "reset" }));
@@ -127,7 +127,7 @@ describe("useQueryState", () => {
     await screen.findByText(/"skip":50\b/);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "search" }));
-    expect(adapter.read()).toBe("q=ada");
+    expect(adapter.read()).toBe("f=&f.name.icontains=ada");
   });
 
   it("renders on the server with an empty query string", () => {

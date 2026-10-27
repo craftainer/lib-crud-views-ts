@@ -10,6 +10,7 @@ import {
   encodeState,
   searchableFields,
   toCrudQuery,
+  withQuickText,
   type QueryContext,
   type QueryDefaults,
   type QueryState,
@@ -123,7 +124,16 @@ export function useQueryState(
       pagedQuery,
       feedQuery,
       setFilters: (filters) => change(() => ({ filters, ...first })),
-      setQuickSearch: (q) => change(() => ({ q, ...first }), "replace"),
+      // The text is the `icontains` filter of the searched field: the filter panel shows it too.
+      setQuickSearch: (q) =>
+        change(
+          (current) => ({
+            filters: withQuickText(current.filters, current.qField, q),
+            ...first,
+          }),
+          "replace",
+        ),
+      // Other fields' filters stay; the box now shows the new field's own text.
       setQuickSearchField: (qField) => change(() => ({ qField, ...first })),
       setSort: (sort) => change(() => ({ sort, ...first })),
       setPage: (page) => change(() => ({ page })),

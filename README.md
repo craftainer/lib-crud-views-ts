@@ -56,7 +56,7 @@ const client = createClient({ baseUrl: "https://api.example.com" });
 
 Every query is keyed `["crud", client, resource, scope, kind, ...]` (the
 manifest: `["crud", client, "_manifest", scope]`), as in `@craftainer/crud-sdk`
-0.4 and 0.5: `client` is `CrudClient.id` (default: its `baseUrl`) and `scope` the
+0.4 to 0.6: `client` is `CrudClient.id` (default: its `baseUrl`) and `scope` the
 caller, from `client.namespace()` (`"anon"` or a hash of the bearer token).
 Two clients or callers on one `QueryClient` never share an entry. Give two
 clients that share a `baseUrl` distinct `id`s, and remount `CrudProvider` (a
@@ -70,9 +70,11 @@ the resource refreshes it. It needs `@craftainer/crud-sdk` 0.3 or later
 
 ### Supported `@craftainer/crud-sdk` versions
 
-`^0.4.0 || ^0.5.0`. From 0.5 the SDK refuses to send an `Authorization` header
+`^0.4.0 || ^0.5.0 || ^0.6.0`. From 0.5 the SDK refuses to send an `Authorization` header
 over plain `http` to a non-loopback host (`InsecureTransportError`): use
 `https`, or pass `allowInsecureHttp: true` to `createClient` (0.5 only).
+
+Bulk delete of "all matching" honours drafts only from 0.6 (see "Bulk actions").
 
 ### Inline edit and ETags
 
@@ -103,10 +105,15 @@ cells are read-only; editing works again once the new rows arrive.
 
 A list keeps its filter, sort and paging state in the query string, through
 `useQueryState` (which `ResourceList` uses). The parameters carry a prefix,
-`l_` by default: `l_page`, `l_sort`, `l_q`, `l_qf`, `l_size`, `l_archived`,
+`l_` by default: `l_page`, `l_sort`, `l_qf`, `l_size`, `l_archived`,
 `l_drafts`, `l_f` and `l_f.<field>.<op>`. The host app's own `page`, `sort`,
 `q` and `size` are neither read nor deleted. Give each list on one page its own
-`prefix`. Links made before the `l_` default (for example `?page=3&q=ada`)
+`prefix`. The quick search is not a separate parameter: its text is the
+`icontains` filter of the searched field (`l_f.<field>.icontains`), so the
+filter bar and builder show it, and editing it there changes the search box.
+There is one slot per field: switching "Search in" keeps the old field's
+filter and shows the new field's own text. A link with an old `l_q` is read as
+that filter. Links made before the `l_` default (for example `?page=3&q=ada`)
 no longer set the list's state: the list starts at its defaults. To keep the unprefixed names (`page`, `sort`, `q`, `size`, ...) that
 versions before the `l_` default used, opt out with `prefix=""`:
 
@@ -131,6 +138,19 @@ themselves). The failure is a `PartialPublishError` (exported; `published`,
 `total`, `failedId`, and the original error as `cause`). A bulk call that matches more records than the
 manifest's `bulk.max_matched` is refused by the server with `400`; the toolbar
 says to narrow the filter.
+
+Bulk delete of "all matching" sends `include_unpublished` (crud-sdk 0.6, a
+server with lib-crud-py 0.8): `false` when the panel hides drafts (the resource
+has no `draft_publish`), `true` when it lists them, so it deletes exactly the
+rows the list shows. Ticked ids are deleted by id. With an older SDK the flag
+is not sent and the server deletes drafts too.
+
+### Revision restore and ETags
+
+Restore is a `PATCH` by record id. When the client uses the SDK cache's
+`autoIfMatch` middleware and the record's ETag is cached, `If-Match` is sent; a
+stale ETag answers `412`, shown as an alert (the dialog closes), and nothing is
+restored. Without a cached ETag no `If-Match` is sent.
 
 ### CSV export
 

@@ -15,6 +15,7 @@ import {
   type QueryContext,
   type QueryDefaults,
 } from "../../src/filter/index.ts";
+import { quickText, withQuickText } from "../../src/filter/queryState.ts";
 import { stubManifest } from "../fixtures/stub.ts";
 
 const manifest = stubManifest as unknown as Manifest;
@@ -109,6 +110,7 @@ describe("URL codec", () => {
         is_draft: { in: [true, false] },
         created_at: { min: new Date("2026-01-01T00:00:00Z") },
         name: { icontains: "ada" },
+        owner_id: { icontains: "cap" },
       },
       q: "cap",
       qField: "owner_id",
@@ -147,7 +149,11 @@ describe("URL codec", () => {
   it("writes nothing for the defaults and keeps foreign parameters", () => {
     const c = ctx();
     expect(encodeState(initialState(c), c)).toBe("");
-    const next = encodeState({ ...initialState(c), q: "x" }, c, "tab=2&page=7");
+    const next = encodeState(
+      { ...initialState(c), filters: { name: { icontains: "x" } } },
+      c,
+      "tab=2&page=7",
+    );
     expect(new URLSearchParams(next).get("tab")).toBe("2");
     expect(new URLSearchParams(next).get("page")).toBeNull();
   });
@@ -181,13 +187,23 @@ describe("URL codec", () => {
     const a = ctx({}, "a.");
     const b = ctx({}, "b.");
     const text = encodeState(
-      { ...initialState(a), q: "one", page: 2, filters: { name: { eq: "x" } } },
+      {
+        ...initialState(a),
+        page: 2,
+        filters: { name: { eq: "x", icontains: "one" } },
+      },
       a,
     );
-    const both = encodeState({ ...initialState(b), q: "two" }, b, text);
+    const both = encodeState(
+      { ...initialState(b), filters: { name: { icontains: "two" } } },
+      b,
+      text,
+    );
     expect(decodeState(both, a).q).toBe("one");
     expect(decodeState(both, a).page).toBe(2);
-    expect(decodeState(both, a).filters).toEqual({ name: { eq: "x" } });
+    expect(decodeState(both, a).filters).toEqual({
+      name: { eq: "x", icontains: "one" },
+    });
     expect(decodeState(both, b).q).toBe("two");
     expect(decodeState(both, b).page).toBe(1);
   });
@@ -197,6 +213,7 @@ describe("URL codec", () => {
     const c = ctx({}, "l_");
     const state = {
       ...initialState(c),
+      filters: { name: { icontains: "ada" } },
       q: "ada",
       page: 2,
       pageSize: 25,
@@ -290,15 +307,9 @@ describe("SDK query", () => {
     const state = {
       ...initialState(c),
       q: "ada",
-      filters: { name: { eq: "x" } },
+      filters: { name: { eq: "x", icontains: "ada" } },
     };
-    expect(effectiveFilters(state)).toEqual({
-      name: { eq: "x", icontains: "ada" },
-    });
-    expect(effectiveFilters({ ...state, qField: undefined })).toBe(
-      state.filters,
-    );
-    expect(effectiveFilters({ ...state, q: "" })).toBe(state.filters);
+    expect(effectiveFilters(state)).toBe(state.filters);
     expect(toCrudQuery(state, false)).toEqual({
       filters: { name: "x", name__icontains: "ada" },
     });
@@ -307,7 +318,12 @@ describe("SDK query", () => {
   it("knows when the list is narrowed", () => {
     const c = ctx();
     expect(isFiltered(initialState(c))).toBe(false);
-    expect(isFiltered({ ...initialState(c), q: "a" })).toBe(true);
+    expect(
+      isFiltered({
+        ...initialState(c),
+        filters: { name: { icontains: "a" } },
+      }),
+    ).toBe(true);
     expect(
       isFiltered({ ...initialState(c), filters: { name: { eq: "a" } } }),
     ).toBe(true);
@@ -317,6 +333,46 @@ describe("SDK query", () => {
     expect(
       isFiltered({ ...initialState(c), filters: { name: undefined } }),
     ).toBe(false);
+  });
+});
+
+describe("quick search as a filter", () => {
+  it("reads the text from the field's icontains filter", () => {
+    const c = ctx();
+    const url = encodeState(
+      {
+        ...initialState(c),
+        filters: { name: { icontains: "ada" }, owner_id: { icontains: "o" } },
+      },
+      c,
+    );
+    expect(decodeState(url, c).q).toBe("ada");
+    expect(decodeState(`${url}&qf=owner_id`, c).q).toBe("o");
+    expect(new URLSearchParams(url).has("q")).toBe(false);
+  });
+
+  it("folds a legacy q parameter into the filter, unless one is set", () => {
+    const c = ctx();
+    const legacy = decodeState("q=ada", c);
+    expect(legacy.filters).toEqual({ name: { icontains: "ada" } });
+    expect(legacy.q).toBe("ada");
+    const both = decodeState("q=old&f=&f.name.icontains=new", c);
+    expect(both.q).toBe("new");
+    expect(both.filters).toEqual({ name: { icontains: "new" } });
+  });
+
+  it("sets and clears one slot per field, keeping its other operators", () => {
+    const filters = { name: { eq: "x" }, owner_id: { icontains: "o" } };
+    expect(withQuickText(filters, "name", "ada")).toEqual({
+      name: { eq: "x", icontains: "ada" },
+      owner_id: { icontains: "o" },
+    });
+    expect(withQuickText(filters, "owner_id", "")).toEqual({
+      name: { eq: "x" },
+    });
+    expect(withQuickText(filters, undefined, "z")).toBe(filters);
+    expect(quickText(filters, undefined)).toBe("");
+    expect(quickText({ name: { icontains: ["a"] } }, "name")).toBe("");
   });
 });
 

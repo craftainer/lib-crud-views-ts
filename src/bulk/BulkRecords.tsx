@@ -20,7 +20,11 @@ import {
   type RendererOverrides,
 } from "../core/index.ts";
 import { SYSTEM_FIELDS } from "../lifecycle/status.ts";
-import { BulkToolbar, type BulkToolbarProps } from "./BulkToolbar.tsx";
+import {
+  BulkToolbar,
+  listsDrafts,
+  type BulkToolbarProps,
+} from "./BulkToolbar.tsx";
 import { useBulkSelection } from "./selection.ts";
 
 export interface BulkPanelProps extends Pick<
@@ -57,7 +61,7 @@ export function BulkPanel({
     filters: toQueryFilters(filters ?? {}),
     limit,
     // Drafts are listed so they can be ticked: Publish acts on them.
-    includeUnpublished: ready.capabilities.draft_publish,
+    includeUnpublished: listsDrafts(ready),
   });
   // Ticked records that left the data set (deleted elsewhere, a smaller page) are no longer selected.
   const { data, isPending } = list;

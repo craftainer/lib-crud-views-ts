@@ -138,6 +138,9 @@ function RevisionListVariant({
                 setTarget(null);
                 onRestored?.(revision);
               },
+              // Close the dialog so the error alert (a 412 when the record
+              // changed since it was loaded) is not left behind the modal.
+              onError: () => setTarget(null),
             },
           );
         }}
