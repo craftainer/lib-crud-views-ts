@@ -11,3 +11,5 @@ ignore:
   - scripts/check-design-tokens.sh
   # Contract documents (I4) frozen for the view areas.
   - docs/contracts/
+  # osv-scanner advisory ignores (time-boxed; see the file).
+  - osv-scanner.toml
