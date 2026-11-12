@@ -1,5 +1,6 @@
 // Maps SDK errors onto the form: 422 problem details onto fields, 412 to a conflict.
 import { PreconditionFailed, ProblemError } from "@craftainer/crud-sdk";
+import { StaleRecordError } from "../core/etag.ts";
 
 /** What a failed save shows. */
 export interface SaveFailure {
@@ -27,7 +28,10 @@ export function describeFailure(
   error: unknown,
   fieldNames: readonly string[],
 ): SaveFailure {
-  if (error instanceof PreconditionFailed) {
+  if (
+    error instanceof PreconditionFailed ||
+    error instanceof StaleRecordError
+  ) {
     return { conflict: true, fieldErrors: {}, message: null };
   }
   const fieldErrors: Record<string, string> = {};

@@ -2,6 +2,7 @@ import type { CrudClient } from "@craftainer/crud-sdk";
 import type { CrudNamespace } from "@craftainer/crud-sdk/tanstack";
 import type { QueryClient } from "@tanstack/react-query";
 import { createContext, useContext, type Context } from "react";
+import type { EtagStore } from "./etag.ts";
 import type { RendererOverrides } from "./types.ts";
 
 /** What `useCrud` returns. */
@@ -21,6 +22,8 @@ export interface CrudContextValue {
   /** IANA zone for `datetime` display; `undefined` = the browser's. */
   readonly timeZone: string | undefined;
   readonly renderers: RendererOverrides | undefined;
+  /** Where writes look up record ETags for `If-Match` (the SDK cache); see `CrudProviderProps.etags`. */
+  readonly etags: EtagStore | undefined;
 }
 
 /** The raw context (`null` outside a provider); use `useCrud` unless a missing provider is fine. */

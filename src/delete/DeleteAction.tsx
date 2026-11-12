@@ -182,6 +182,10 @@ function DeleteController({
   };
 
   // Leaving while an `undo` deletion waits commits it: the user asked for it.
+  // Kept on purpose (documented in src/delete/README.md): cancelling on unmount
+  // would silently drop a delete the user was told about. The cost is that a
+  // remount of the host row inside `undoMs` (a refetch that changes keys, a
+  // route change) commits it without the user reaching the Undo button.
   const pending = useRef<(() => Promise<boolean>) | undefined>(undefined);
   useEffect(
     () => () => {

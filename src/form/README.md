@@ -28,10 +28,15 @@
   again. Create has no such hint: nothing was there to clear.
 - Submit is blocked while a built-in input reports an invalid draft
   (`onInvalid`, I4 addendum).
-- `If-Match`: the SDK's record query does not expose the ETag, so pass
-  `etag(id)` (for example from the SDK cache's `cachedEtag`) and it is called
-  before every save. On 412 the form offers Reload (discard edits) and
-  Overwrite (save without `If-Match`).
+- `If-Match`: on a resource with `conditional_requests` every edit save carries
+  it, never an unconditional PATCH. The ETag comes from `etag(id)` if given,
+  else from `CrudProvider`'s `etags` (the SDK cache's `cachedEtag`); when none
+  is known the save is refused with `MissingEtagError`. After the form's own
+  save the SDK cache drops the validator, so the record is read again and the
+  new one is used only if the record still shows what was saved (else
+  `StaleRecordError`, shown as a conflict). On 412 the form offers Reload
+  (discard edits) and Overwrite (re-reads the record, then saves with its
+  current ETag). Rationale: `docs/adrs/0003-required-if-match-for-conditional-resources.md`.
 - Writable fields are those in the `create` (or `update`) schema; relations
   do not exist in the manifest, so there are no nested rows.
 

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { CrudContextRaw, type CrudContextValue } from "./context.ts";
+import type { EtagStore } from "./etag.ts";
 import type { RendererOverrides } from "./types.ts";
 
 export interface CrudProviderProps {
@@ -25,6 +26,15 @@ export interface CrudProviderProps {
    * themselves; set it to name the caller yourself (for example the user id).
    */
   readonly scope?: string | undefined;
+  /**
+   * Where the views read a record's ETag for `If-Match`: pass the SDK cache
+   * (`createCache(...)` from `@craftainer/crud-sdk/cache`), which keeps the last
+   * validator of every record it read. Required in practice: a write to a
+   * resource that declares `conditional_requests` is refused (with
+   * `MissingEtagError`) when no ETag is known, unless the view's own `etag` /
+   * `ifMatch` prop supplies it.
+   */
+  readonly etags?: EtagStore | undefined;
   readonly locale?: string | undefined;
   readonly timeZone?: string | undefined;
   readonly children?: ReactNode;
@@ -81,6 +91,7 @@ export function CrudProvider({
   theme,
   renderers,
   scope,
+  etags,
   locale,
   timeZone,
   children,
@@ -95,6 +106,7 @@ export function CrudProvider({
       locale,
       timeZone,
       renderers,
+      etags,
     }),
     [
       client,
@@ -104,6 +116,7 @@ export function CrudProvider({
       locale,
       timeZone,
       renderers,
+      etags,
     ],
   );
   const tree = (

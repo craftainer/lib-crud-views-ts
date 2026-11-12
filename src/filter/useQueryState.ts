@@ -85,6 +85,8 @@ export function useQueryState(
       prefix,
       searchField,
       maxPageSize: ready.resource.pagination.max_limit - 1,
+      archiveRestore: ready.capabilities.archive_restore,
+      draftPublish: ready.capabilities.draft_publish,
     }),
     [
       fields,
@@ -93,6 +95,8 @@ export function useQueryState(
       prefix,
       searchField,
       ready.resource.pagination.max_limit,
+      ready.capabilities.archive_restore,
+      ready.capabilities.draft_publish,
     ],
   );
   const search = useSyncExternalStore(

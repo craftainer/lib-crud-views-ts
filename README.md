@@ -70,33 +70,57 @@ the resource refreshes it. It needs `@craftainer/crud-sdk` 0.3 or later
 
 ### Supported `@craftainer/crud-sdk` versions
 
-`^0.4.0 || ^0.5.0 || ^0.6.0`. From 0.5 the SDK refuses to send an `Authorization` header
+`^0.4.0 || ^0.5.0 || ^0.6.0`; `etags` (ETags for `If-Match`) needs the SDK cache with `cachedEtag` (0.6, and validator retention for BFF `no-store` responses from 0.8). From 0.5 the SDK refuses to send an `Authorization` header
 over plain `http` to a non-loopback host (`InsecureTransportError`): use
 `https`, or pass `allowInsecureHttp: true` to `createClient` (0.5 only).
 
 Bulk delete of "all matching" honours drafts only from 0.6 (see "Bulk actions").
 
-### Inline edit and ETags
+### Optimistic concurrency (If-Match)
 
-The list endpoint returns no ETags, so the table's inline edit takes
-`ifMatch(row)` from the app. It may return a string, `undefined` (the PATCH
-goes without `If-Match`) or a promise of either, the same shape as
-`ResourceForm`'s `etag`. `fetchEtagById` stands for the app's own lookup, for
-example fetching the row through the SDK and reading its cached ETag:
+A resource whose manifest declares `conditional_requests` needs an ETag for
+every write the views make (the form's save and Overwrite, the table's inline
+edit, revision Restore). The views do not send such a write unconditionally:
+when no ETag is known the save is refused with a `MissingEtagError` ("its ETag
+is unknown") and nothing is sent. Resources without `conditional_requests` are
+unaffected.
+
+Pass the SDK cache as `etags` and the views read each record's last validator
+from it; `@craftainer/crud-sdk` 0.8 or later keeps it for every record it read,
+also for `no-store` (BFF) responses:
 
 ```tsx
-<ResourceList
-  resource="heroes"
-  editable
-  ifMatch={async (row) =>
-    (await fetchEtagById(row["id"] as number)) ?? undefined
-  }
-/>
+import { createClient } from "@craftainer/crud-sdk";
+import { createCache, cachePolicyFromManifest } from "@craftainer/crud-sdk/cache";
+
+const cache = createCache({ store, policies });
+const client = createClient({ baseUrl, middleware: [cache.middleware] });
+
+<CrudProvider client={client} queryClient={queryClient} etags={cache}>
 ```
 
-The edit waits for the promise and stays in a saving state (the cell stays
-in edit mode and the table is `aria-busy`); a rejection sends nothing and shows "Could not save: ..." like
-any other save error.
+(`middleware` is the SDK 0.4 to 0.8 shape. From 0.9 the cache is passed as
+`createClient({ cache })` and a cookie client needs a `cacheScope`; pass the
+same cache object as `etags`.) `etags` is structural (`cachedEtag(resource,
+id, scope, apiVersion)`), so no runtime import of the SDK cache is needed.
+
+- Form: the validator of the record as the form loaded it. A per-form `etag(id)`
+  callback still wins. After the form's own save the SDK drops the validator, so
+  the form reads the record again and uses the new one only if the record still
+  shows what the form saved; otherwise the save is a conflict.
+- Inline edit: the list endpoint returns no ETags, so the table reads the
+  record once through the SDK when the store has none, and refuses the edit
+  ("changed elsewhere") when the edited field no longer has the value the row
+  showed. `ifMatch(row)` (a string, a promise, or `undefined` for "unknown")
+  overrides this; `undefined` is now refused, not sent.
+- Revision Restore: replaces the record on purpose, so it reads the record for
+  a fresh validator when none is cached and sends it; a concurrent edit
+  afterwards still answers `412`, shown as an alert.
+- Overwrite after a `412` re-reads the record and sends its current ETag.
+
+The inline edit waits for the lookup and stays in a saving state (the cell
+stays in edit mode and the table is `aria-busy`); a rejection sends nothing and
+shows "Could not save: ..." like any other save error.
 
 While the table shows the previous page (the next one is still loading), its
 cells are read-only; editing works again once the new rows arrive.
@@ -139,7 +163,12 @@ themselves). The failure is a `PartialPublishError` (exported; `published`,
 manifest's `bulk.max_matched` is refused by the server with `400`; the toolbar
 says to narrow the filter.
 
-Bulk delete of "all matching" sends `include_unpublished` (crud-sdk 0.6, a
+Bulk delete of "all matching" first counts the matching records (reading at
+most `bulk.max_matched + 1` rows with the filters as the dialog opened them) and
+the confirmation says "N records match the filter and are deleted"; the Delete
+button stays disabled while counting, when the count cannot be read, or when
+the filter matches more than `bulk.max_matched`. The delete then uses those
+same filters. It sends `include_unpublished` (crud-sdk 0.6, a
 server with lib-crud-py 0.8): `false` when the panel hides drafts (the resource
 has no `draft_publish`), `true` when it lists them, so it deletes exactly the
 rows the list shows. Ticked ids are deleted by id. With an older SDK the flag
@@ -147,10 +176,23 @@ is not sent and the server deletes drafts too.
 
 ### Revision restore and ETags
 
-Restore is a `PATCH` by record id. When the client uses the SDK cache's
-`autoIfMatch` middleware and the record's ETag is cached, `If-Match` is sent; a
-stale ETag answers `412`, shown as an alert (the dialog closes), and nothing is
-restored. Without a cached ETag no `If-Match` is sent.
+Restore is a `PATCH` by record id with the record's ETag (see "Optimistic
+concurrency"). A stale ETag answers `412`, shown as an alert (the dialog
+closes), and nothing is restored.
+
+### Links and flags in the URL
+
+`l_archived=1` and `l_drafts=1` are honoured only when the resource declares
+`archive_restore` / `draft_publish` for the caller; otherwise they are
+ignored. Filter operators in a link are limited to those the manifest lists for
+the field.
+
+### `mailto:` and `uri` values
+
+A field with `format: "email"` becomes a `mailto:` link only when the value is
+one plain address (no `?`, `&`, `#`, `%`, `,`, `;`, whitespace, quotes or
+brackets, so it cannot add a `bcc` or `body`); any other value is plain text.
+`format: "uri"` links only `http` and `https` values.
 
 ### CSV export
 
@@ -161,6 +203,66 @@ gets a leading `'`, so a spreadsheet does not read it as a formula. The
 prefix is part of the exported value: the text `-5` in a text column exports
 as `'-5`. Numbers are not strings and are never prefixed, so the number `-5`
 exports as `-5`.
+
+## Security notes
+
+- **Capabilities are not authorization.** `capabilities` (and `readOnly`) only
+  hide controls. Every mutation is sent to the server whatever the UI shows, so
+  the crud server must enforce authorization and owner scope; never rely on a
+  hidden button.
+- **Host `display` overrides.** Built-in renderers show every value as text.
+  A renderer you register or pass in `renderers` replaces them and is the one
+  place a record value can reach `dangerouslySetInnerHTML` or an `href`/`src`.
+  Sanitize there, allow only `https:`/`mailto:` schemes for links, and never
+  render a value as HTML.
+- **Emotion nonce.** MUI and Emotion inject `<style>` elements. Under a CSP
+  with `style-src-elem 'nonce-...'` (the BFF's), give Emotion a cache with the
+  nonce (`createCache({ key: "css", nonce })` from `@emotion/cache`, wrapped in
+  `CacheProvider`) or the page renders unstyled. This library ships no inline
+  script, no `eval` and no `<style>` of its own and never exports charts; if you
+  add MUI X chart image/print export, it needs its own `nonce` option and
+  `data:`/`blob:` in the CSP.
+- **Scope and logout cache clearing.** Queries (manifest, lists, records) are
+  cached per `{client, scope}`; the default scope is `client.namespace()`,
+  which is `"anon"` for a cookie/BFF session with no bearer token, so a second
+  user signed in without a full page load would be served the first user's
+  cache. For cookie auth set `scope` on `CrudProvider` to the user (for
+  example the `sub`) and, on logout or any user change, call
+  `queryClient.clear()`, the SDK `cache.clear()` and tear down event streams
+  (or navigate away with a full page load). A role change inside a session is
+  not seen until the manifest is refetched.
+- **Server error text.** `error.message` and Problem Details `title`/`detail`
+  from the server are shown as text; keep stack traces and internals out of
+  them on the server.
+- **`undo` delete commits on unmount.** In the `undo` variant a pending delete
+  is committed when the component unmounts (leaving the page, or a row remount
+  from a refetch that changes keys) inside `undoMs`, because dropping a delete
+  the user was told about would be worse. A host that remounts rows must keep
+  the row mounted (a stable `key`) or use the `confirm` variant.
+- **Other defaults.** Export and Publish read unpublished rows
+  (`includeUnpublished`); the server decides what the caller may see.
+  `pattern` from the manifest is compiled and run on every keystroke, so the
+  manifest is trusted input.
+
+## Migrating to 0.7 (breaking)
+
+- Conditional resources need an ETag for every write. Add
+  `etags={cache}` to `CrudProvider` (SDK 0.8+ cache) or pass `etag` /
+  `ifMatch`. Without one the views refuse the save with `MissingEtagError`
+  instead of sending it unconditionally; an `ifMatch` that returns `undefined`
+  is refused too. If you relied on `autoIfMatch` for Restore, add `etags`.
+- Overwrite after a `412` now sends the re-read ETag (no longer no header).
+- `QueryContext` (exported from the filter area, used by `decodeState`) has
+  two new required members, `archiveRestore` and `draftPublish`.
+- `l_archived` / `l_drafts` links no longer take effect without the matching
+  capability.
+- Delete-all-matching needs a readable count within `bulk.max_matched` before
+  Delete is enabled.
+- `format: "email"` values that are not a single plain address render as text.
+- New exports: `MissingEtagError`, `StaleRecordError`, `useEtagResolver`,
+  `EtagStore`, `EtagSource`, `EtagResolver`.
+- Decision record:
+  [`docs/adrs/0003-required-if-match-for-conditional-resources.md`](docs/adrs/0003-required-if-match-for-conditional-resources.md).
 
 ## Development
 

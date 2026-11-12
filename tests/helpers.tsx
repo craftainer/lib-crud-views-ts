@@ -2,6 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { CrudProvider, type CrudProviderProps } from "../src/core/index.ts";
+import { tableEtags } from "./fixtures/routes/form.ts";
 import { createStubClient, type StubOptions } from "./fixtures/stub.ts";
 import type { FieldDescriptor } from "../src/core/index.ts";
 
@@ -23,7 +24,12 @@ export function renderCrud(
   const s = createStubClient(stub);
   const queryClient = newQueryClient();
   const wrapper = ({ children }: { children: ReactNode }): ReactElement => (
-    <CrudProvider client={s.client} queryClient={queryClient} {...extra}>
+    <CrudProvider
+      client={s.client}
+      queryClient={queryClient}
+      etags={tableEtags(s.tables)}
+      {...extra}
+    >
       {children}
     </CrudProvider>
   );

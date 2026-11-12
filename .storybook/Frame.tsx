@@ -3,6 +3,7 @@ import { useColorScheme } from "@mui/material/styles";
 import { QueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { CrudProvider } from "../src/core/index.ts";
+import { tableEtags } from "../tests/fixtures/routes/form.ts";
 import { createStubClient, type StubOptions } from "../tests/fixtures/stub.ts";
 import { demoTheme } from "./demoTheme.ts";
 
@@ -31,16 +32,22 @@ export function Frame({
   scheme: Scheme;
   children: ReactNode;
 }) {
-  const [state] = useState(() => ({
-    client: createStubClient(stub).client,
-    queryClient: new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    }),
-  }));
+  const [state] = useState(() => {
+    const made = createStubClient(stub);
+    return {
+      client: made.client,
+      // Stands for the SDK cache: the ETag the stub would send for a record.
+      etags: tableEtags(made.tables),
+      queryClient: new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      }),
+    };
+  });
   return (
     <CrudProvider
       client={state.client}
       queryClient={state.queryClient}
+      etags={state.etags}
       theme={demoTheme}
       locale="en-US"
       timeZone="UTC"

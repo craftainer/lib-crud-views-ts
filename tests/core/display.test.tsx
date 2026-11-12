@@ -43,6 +43,20 @@ describe("display renderers", () => {
     ).toHaveAttribute("rel", "noreferrer noopener");
   });
 
+  it.each([
+    "a@b.co?bcc=victim@x.com&body=hi",
+    "a@b.co,c@d.co",
+    "a@b.co;c@d.co",
+    "not an address",
+    "a@b",
+    "a@b.co#frag",
+    "<a@b.co>",
+  ])("renders %s as text, not a mailto link", (value) => {
+    show({ kind: "string", format: "email" }, value);
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText(value)).toBeInTheDocument();
+  });
+
   it("never links a non-http uri", () => {
     show({ kind: "string", format: "uri" }, "javascript:alert(1)");
     expect(screen.queryByRole("link")).toBeNull();

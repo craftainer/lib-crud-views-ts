@@ -1,6 +1,7 @@
 // Stub routes for the form views: a weak ETag per record, `If-Match` checks
 // (412) and 422 problem details for the value "INVALID".
 import type { JsonObject } from "@craftainer/crud-sdk";
+import type { EtagStore } from "../../../src/core/index.ts";
 import type { StubRoute } from "../stub.ts";
 
 /**
@@ -70,3 +71,22 @@ export const formRoutes: StubRoute = async ({ request, url, tables }) => {
     headers: { "Content-Type": "application/json", ETag: etagOf(row) },
   });
 };
+
+/**
+ * An `etags` store over the stub's tables: the ETag the stub would send for a
+ * record right now (stands in for the SDK cache, which remembers the last one).
+ */
+export function tableEtags(
+  tables: ReadonlyMap<string, JsonObject[]>,
+): EtagStore {
+  return {
+    cachedEtag: (resource, recordId) => {
+      for (const [path, rows] of tables) {
+        if (!path.includes(`/${resource}/`)) continue;
+        const row = rows.find((r) => r["id"] === recordId);
+        if (row !== undefined) return Promise.resolve(etagOf(row));
+      }
+      return Promise.resolve(undefined);
+    },
+  };
+}

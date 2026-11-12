@@ -23,13 +23,21 @@ function asText(value: FieldValue): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
+/**
+ * A single plain address. Anything that could add a mailto header or a second
+ * recipient (`?`, `&`, `#`, `%`, `,`, `;`, whitespace, quotes, brackets) fails,
+ * so a stored value cannot make the mail client set `bcc` or `body`.
+ */
+const MAILBOX =
+  /^[^\s@?&#%,;:"<>()[\]\\]+@[^\s@?&#%,;:"<>()[\]\\]+\.[^\s@?&#%,;:"<>()[\]\\]+$/;
+
 export function StringDisplay({
   value,
   field,
 }: DisplayRendererProps): ReactElement {
   if (isEmpty(value)) return <Empty />;
   const text = asText(value);
-  if (field.format === "email") {
+  if (field.format === "email" && MAILBOX.test(text)) {
     return <Link href={`mailto:${text}`}>{text}</Link>;
   }
   if (field.format === "uri" && /^https?:\/\//i.test(text)) {

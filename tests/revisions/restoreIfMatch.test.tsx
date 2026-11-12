@@ -1,5 +1,5 @@
-// Restoring a revision is a PATCH by record id (`useUpdate`), so the SDK
-// cache's `autoIfMatch` adds the cached record ETag as `If-Match`.
+// Restoring a revision is a PATCH by record id (`useUpdate`); the view reads
+// the record's ETag from `CrudProvider`'s `etags` (the SDK cache) and sends it.
 import {
   cachePolicyFromManifest,
   createCache,
@@ -29,7 +29,7 @@ function setup() {
       sent.push(ctx.request.headers.get("if-match"));
     return next(ctx);
   };
-  return { middleware: [cache.middleware, cache.autoIfMatch, spy], sent };
+  return { middleware: [cache.middleware, spy], sent, cache };
 }
 
 const ui = (
@@ -52,11 +52,11 @@ const restore = async (): Promise<void> => {
   );
 };
 
-describe("restoring a revision with autoIfMatch", () => {
+describe("restoring a revision with the SDK cache as etags", () => {
   it("sends If-Match from the cached ETag of that record", async () => {
-    const { middleware, sent } = setup();
+    const { middleware, sent, cache } = setup();
     const heroes = lifecycleHeroes();
-    renderCrud(ui, { heroes, middleware });
+    renderCrud(ui, { heroes, middleware }, { etags: cache });
     await userEvent.click(
       await screen.findByRole("button", { name: "load record" }),
     );
@@ -66,18 +66,34 @@ describe("restoring a revision with autoIfMatch", () => {
     expect(sent[0]).toBe(cached);
   });
 
-  it("sends no If-Match when no ETag is cached", async () => {
-    const { middleware, sent } = setup();
-    renderCrud(ui, { heroes: lifecycleHeroes(), middleware });
+  it("reads the record first when no ETag is cached, then sends its ETag", async () => {
+    const { middleware, sent, cache } = setup();
+    const heroes = lifecycleHeroes();
+    renderCrud(ui, { heroes, middleware }, { etags: cache });
+    const current = etagOf(heroes[0] as never);
     await restore();
     await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]).toBeNull();
+    expect(sent[0]).toBe(current);
+  });
+
+  it("refuses to restore, sending nothing, when the provider has no etags", async () => {
+    const { middleware, sent } = setup();
+    renderCrud(
+      ui,
+      { heroes: lifecycleHeroes(), middleware },
+      { etags: undefined },
+    );
+    await restore();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /ETag is unknown/,
+    );
+    expect(sent).toHaveLength(0);
   });
 
   it("shows the error alert on a 412 and does not restore", async () => {
-    const { middleware, sent } = setup();
+    const { middleware, sent, cache } = setup();
     const heroes = lifecycleHeroes();
-    renderCrud(ui, { heroes, middleware });
+    renderCrud(ui, { heroes, middleware }, { etags: cache });
     await userEvent.click(
       await screen.findByRole("button", { name: "load record" }),
     );
@@ -89,5 +105,33 @@ describe("restoring a revision with autoIfMatch", () => {
       /precondition failed/i,
     );
     expect(sent).toHaveLength(1);
+  });
+
+  it("sends no If-Match for a resource without conditional requests", async () => {
+    const { middleware, sent } = setup();
+    renderCrud(
+      ui,
+      {
+        heroes: lifecycleHeroes(),
+        middleware,
+        manifestPatch: (m) => {
+          for (const r of m.resources)
+            r.capabilities.conditional_requests = false;
+        },
+      },
+      { etags: undefined },
+    );
+    await restore();
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toBeNull();
+  });
+
+  it("shows a lookup that rejects with a non-Error and sends nothing", async () => {
+    const { middleware, sent } = setup();
+    const etags = { cachedEtag: () => Promise.reject("lookup failed") };
+    renderCrud(ui, { heroes: lifecycleHeroes(), middleware }, { etags });
+    await restore();
+    expect(await screen.findByRole("alert")).toHaveTextContent("lookup failed");
+    expect(sent).toHaveLength(0);
   });
 });
