@@ -149,6 +149,17 @@ describe("describeBulkError", () => {
     ).toBe("Published 2 of 5; failed at 4: 400 Bad Request");
     expect(new BulkLimitError(5).message).toMatch(/More than 5/);
   });
+
+  it("trims trailing dots and whitespace, and stays linear on adversarial input", () => {
+    const describeTitle = (title: string): string =>
+      describeBulkError(new BadRequest({ status: 400, title }), 7);
+    expect(describeTitle("too many. \t\n..")).toContain("too many. A bulk");
+    // Many tabs followed by a non-matching character: quadratic with the old regex.
+    const hostile = `x${"\t".repeat(200_000)}y`;
+    const started = performance.now();
+    expect(describeTitle(hostile)).toContain(`${hostile}. A bulk`);
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
 });
 
 const selectionOf = (over: Partial<BulkSelection>): BulkSelection => ({
