@@ -16,6 +16,7 @@ import {
   FieldInput,
   StaleRecordError,
   useEtagResolver,
+  useForcedReload,
   type FieldDescriptor,
   type FieldValue,
   type ReadyResource,
@@ -133,6 +134,7 @@ export function DataTableList({
       ifMatch?.(row as Row),
     [ifMatch],
   );
+  const forced = useForcedReload(ready);
   const resolveEtag = useEtagResolver(
     ready,
     ifMatch === undefined ? undefined : rowSource,
@@ -265,7 +267,7 @@ export function DataTableList({
       error instanceof StaleRecordError
     ) {
       setNotice("This row changed elsewhere. It was reloaded; edit it again.");
-      void list.refetch();
+      void forced.list(state.pagedQuery);
     } else {
       setNotice(
         `Could not save: ${error instanceof Error ? error.message : String(error)}`,

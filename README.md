@@ -130,12 +130,19 @@ id, scope, apiVersion)`), so no runtime import of the SDK cache is needed.
 - Not covered: `publish`, trash restore, `clone` and bulk calls go through SDK
   methods without an `If-Match` option, so they are not conditional. The
   server's own checks apply to them.
-- The "read" goes through the SDK cache: with a cache policy whose `max_age` or
-  `stale_while_revalidate` is above 0 it can be answered from the cache without
-  the network (the body and the validator are then the cached pair, so a changed
-  record answers `412`), and a stale-while-revalidate refresh landing between the
-  read and the PATCH can pair the old body with the new validator. For
-  conditional resources use a policy with both at 0, or a BFF (`no-store`).
+- The "read" (the form's and the inline edit's pre-write read, Overwrite's
+  re-read, Restore's and Delete's read) is sent with `cache: "no-cache"`, and
+  so is the reload after a conflict (the form's Reload, the table's list
+  reload). With `@craftainer/crud-sdk` 0.10 or later this forces
+  revalidation: the SDK cache never answers it with a `hit` or `stale` entry,
+  whatever the resource's `max_age` or `stale_while_revalidate`, so a cache
+  policy cannot hide a change from the conflict check. An older SDK ignores the
+  option: there, with a policy whose `max_age` or `stale_while_revalidate` is
+  above 0, the read can be answered from the cache without the network (the
+  body and the validator are then the cached pair, so a changed record answers
+  `412`), and a stale-while-revalidate refresh landing between the read and the
+  PATCH can pair the old body with the new validator. On those versions use a
+  policy with both at 0, or a BFF (`no-store`).
 - The SDK cache keeps only the newest validator per record, so a read of the
   same record by another view in the instant between the view's read and its
   PATCH can replace it; the server's atomic `If-Match` check is the last line.
