@@ -83,7 +83,7 @@ export const ConfirmDelete: Story = {
   },
 };
 
-/** More records match than `bulk.max_matched`: the server answers 400 and the toolbar says why. */
+/** More records match than `bulk.max_matched`: the confirmation says so and Delete stays disabled. */
 export const OverTheLimit: Story = {
   parameters: { stub: { heroes: manyHeroes(1001) } },
   render: () => (
@@ -105,12 +105,9 @@ export const OverTheLimit: Story = {
     await userEvent.click(
       await within(canvasElement).findByRole("button", { name: "Delete" }),
     );
-    await userEvent.click(
-      await within(await screen.findByRole("dialog")).findByRole("button", {
-        name: "Delete",
-      }),
+    await within(await screen.findByRole("dialog")).findByText(
+      /More than 1000 records match the filter/,
     );
-    await within(canvasElement).findByText(/at most 1000 records/);
   },
 };
 

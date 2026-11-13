@@ -54,6 +54,8 @@ describe("display renderers", () => {
     "a@b..co",
     "a@.b.co",
     "a@b.co.",
+    "@b.co",
+    "a@b@c.co",
   ])("renders %s as text, not a mailto link", (value) => {
     show({ kind: "string", format: "email" }, value);
     expect(screen.queryByRole("link")).toBeNull();

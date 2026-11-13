@@ -23,16 +23,21 @@ function asText(value: FieldValue): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-/**
- * A single plain address. Anything that could add a mailto header or a second
- * recipient (`?`, `&`, `#`, `%`, `,`, `;`, whitespace, quotes, brackets) fails,
- * so a stored value cannot make the mail client set `bcc` or `body`.
- */
-const MAILBOX =
-  /^[^\s@?&#%,;:"<>()[\]\\]+@[^\s@?&#%,;:"<>()[\]\\]+\.[^\s@?&#%,;:"<>()[\]\\]+$/;
+/** Characters that could add a mailto header, a second recipient or markup. */
+const UNSAFE_IN_MAILBOX = /[\s?&#%,;:"<>()[\]\\]/;
 
-const isMailbox = (text: string): boolean =>
-  MAILBOX.test(text) && !text.includes("..") && !/@\.|\.$/.test(text);
+/**
+ * A single plain address, checked without a backtracking pattern: one `@`, a
+ * non-empty local part, a dotted domain with no empty label, and none of the
+ * characters a mailto link could use to add a `bcc` or `body`.
+ */
+const isMailbox = (text: string): boolean => {
+  if (UNSAFE_IN_MAILBOX.test(text)) return false;
+  const at = text.indexOf("@");
+  if (at < 1 || at !== text.lastIndexOf("@")) return false;
+  const labels = text.slice(at + 1).split(".");
+  return labels.length >= 2 && labels.every((label) => label !== "");
+};
 
 export function StringDisplay({
   value,
