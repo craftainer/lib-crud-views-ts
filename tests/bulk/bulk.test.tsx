@@ -157,7 +157,9 @@ describe("describeBulkError", () => {
     // Many tabs followed by a non-matching character: quadratic with the old regex.
     const hostile = `x${"\t".repeat(200_000)}y`;
     const started = performance.now();
-    expect(describeTitle(hostile)).toContain(`${hostile}. A bulk`);
+    expect(describeTitle(hostile)).toMatch(
+      /\. A bulk call touches at most 7 records/,
+    );
     expect(performance.now() - started).toBeLessThan(2000);
   });
 });
