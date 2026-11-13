@@ -66,7 +66,7 @@ describe("restoring a revision with the SDK cache as etags", () => {
     expect(sent[0]).toBe(cached);
   });
 
-  it("reads the record first when no ETag is cached, then sends its ETag", async () => {
+  it("reads the record first, then sends its ETag", async () => {
     const { middleware, sent, cache } = setup();
     const heroes = lifecycleHeroes();
     renderCrud(ui, { heroes, middleware }, { etags: cache });
@@ -94,7 +94,7 @@ describe("restoring a revision with the SDK cache as etags", () => {
     );
   });
 
-  it("shows the error alert on a 412 and does not restore", async () => {
+  it("restores with the current ETag even when the cached one is stale", async () => {
     const { middleware, sent, cache } = setup();
     const heroes = lifecycleHeroes();
     renderCrud(ui, { heroes, middleware }, { etags: cache });
@@ -102,8 +102,30 @@ describe("restoring a revision with the SDK cache as etags", () => {
       await screen.findByRole("button", { name: "load record" }),
     );
     await waitFor(() => expect(sent).toHaveLength(0));
-    // Another writer changes the record after it was cached: its ETag is stale.
+    // Another writer changes the record after it was cached: the cached ETag is stale.
     touch(heroes[0] as never);
+    const current = etagOf(heroes[0] as never);
+    await restore();
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toBe(current);
+  });
+
+  it("shows the error alert on a 412 from a write between the read and the PATCH, and does not restore", async () => {
+    const { middleware, sent, cache } = setup();
+    const heroes = lifecycleHeroes();
+    let raced = false;
+    const race: Middleware = (ctx, next) => {
+      if (ctx.request.method === "PATCH" && !raced) {
+        raced = true;
+        touch(heroes[0] as never);
+      }
+      return next(ctx);
+    };
+    renderCrud(
+      ui,
+      { heroes, middleware: [race, ...middleware] },
+      { etags: cache },
+    );
     await restore();
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /precondition failed/i,

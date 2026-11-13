@@ -65,12 +65,13 @@ export interface ResourceFormProps {
   /** Pause before an auto-save, in milliseconds. Default 1000. */
   readonly autoSaveDelayMs?: number | undefined;
   /**
-   * The ETag of the record as the form loaded it, sent as `If-Match` on every
+   * The ETag of the record as the user saw it, sent as `If-Match` on every
    * save (edit only). Called before each save, because a save changes the
-   * ETag. Optional only because `CrudProvider`'s `etags` (the SDK cache) is the
-   * default source: when the resource has `conditional_requests` and neither
-   * knows an ETag, the save is refused with `MissingEtagError`, never sent
-   * unconditionally.
+   * ETag. Without it the form reads the record right before the save, compares
+   * it with what it loaded or last saved (a difference is a conflict) and uses
+   * the ETag `CrudProvider`'s `etags` (the SDK cache) holds for that read. When
+   * the resource has `conditional_requests` and no ETag is known, the save is
+   * refused with `MissingEtagError`, never sent unconditionally.
    */
   readonly etag?: EtagSource | undefined;
   readonly onSaved?: ((record: JsonObject) => void) | undefined;
@@ -162,9 +163,6 @@ function FormController({
   const { hooks, resource } = ready;
   const formId = useId();
   const resolveEtag = useEtagResolver(ready, props.etag);
-  // The SDK cache drops a record's validator on every write, so after the
-  // form's own save the record is read again to get the new one.
-  const savedByForm = useRef(false);
 
   const record = useQuery({
     ...recordOptions(ready.namespace, ready.queryName, ready.api, id ?? 0),
@@ -278,27 +276,24 @@ function FormController({
       } else {
         // Edits made while the request runs are not saved yet.
         const seen = edits.current;
-        if (options.overwrite === true) {
-          // Overwrite is the user's decision to replace what the other writer
-          // saved: re-read the record so the ETag is the current one (a second
-          // concurrent write still answers 412), never an unconditional PATCH.
-          const fresh = await record.refetch();
-          if (fresh.isError) throw fresh.error;
-        }
         const overwrite = options.overwrite === true;
         const ifMatch = await resolveEtag(id as number, {
-          fetch: savedByForm.current && !overwrite ? "missing" : "never",
-          // The record was just re-read for Overwrite: use what that cached,
-          // not the loaded-time ETag the app's callback may still return.
+          // Without the app's `etag`, read the record right before the save so
+          // the validator is the one of what is compared below: a background
+          // refetch or a save by this form never leaves an older or newer one
+          // in the SDK cache unchecked.
+          fetch: props.etag !== undefined && !overwrite ? "never" : "always",
+          // Overwrite re-reads the record too: use what that cached, not the
+          // loaded-time ETag the app's callback may still return.
           preferStore: overwrite,
-          // Only trust the new validator if nobody else changed the record since
-          // this form's save; Overwrite replaces such a change on purpose.
+          // Nobody else may have changed the record (any field) since the form
+          // loaded or saved it; Overwrite replaces such a change on purpose.
           ...(overwrite
             ? {}
             : {
                 verify: (fresh: JsonObject) =>
-                  editable.every((f) =>
-                    same(fresh[f.name] as FieldValue, baseline?.[f.name]),
+                  Object.entries(baseline as Row).every(([name, value]) =>
+                    same(fresh[name] as FieldValue, value),
                   ),
               }),
         });
@@ -308,7 +303,6 @@ function FormController({
           ...(ifMatch === undefined ? {} : { ifMatch }),
         });
         setBaseline(saved as Row);
-        savedByForm.current = true;
         setStatus(edits.current === seen ? "saved" : "idle");
         props.onSaved?.(saved);
       }

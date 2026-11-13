@@ -85,6 +85,7 @@ export function BulkToolbar({
     null,
   );
   const countRun = useRef(0);
+  const counting = useRef<AbortController | undefined>(undefined);
   const { capabilities, bulk, id_field } = ready.resource;
   const max = bulk.max_matched;
   const hasFilters = Object.keys(toQueryFilters(filters)).length > 0;
@@ -145,6 +146,9 @@ export function BulkToolbar({
   /** Freezes the filters for the confirmation and counts what they match (at most `max + 1` rows are read). */
   const askDelete = (): void => {
     const token = ++countRun.current;
+    counting.current?.abort();
+    const abort = new AbortController();
+    counting.current = abort;
     const server = serverFilters(ready, selection, filters);
     setFrozen(server);
     setMatching(selection.allMatching ? null : count);
@@ -156,6 +160,9 @@ export function BulkToolbar({
         for await (const _row of ready.handle.iterAll({
           filters: server,
           includeUnpublished: listsDrafts(ready),
+          // Whole pages, and stop the loop when the dialog closes.
+          limit: ready.resource.pagination.max_limit,
+          signal: abort.signal,
         })) {
           found += 1;
           if (found > max) break;
@@ -301,6 +308,7 @@ export function BulkToolbar({
         }
         onClose={() => {
           countRun.current += 1;
+          (counting.current as AbortController).abort();
           setConfirming(false);
         }}
         onConfirm={() => void remove()}

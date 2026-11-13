@@ -530,6 +530,24 @@ describe("edit", () => {
     expect(screen.queryByText("Saved")).toBeNull();
   });
 
+  it("treats a change to a field the form does not show as a conflict", async () => {
+    const heroes = fresh();
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} fields={["name"]} />,
+      { heroes },
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Name/), "!");
+    // Someone else changes another field after the form loaded the record.
+    heroes[0]!["power_level"] = 99;
+    touch(heroes[0] as JsonObject);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByText(/This record was changed since you opened it/),
+    ).toBeInTheDocument();
+    expect(requests(view, "PATCH")).toHaveLength(0);
+  });
+
   it("is unused etag helper for stale ETags", () => {
     const heroes = fresh();
     expect(etag(heroes)(1)).toMatch(/^W\/"1-/);

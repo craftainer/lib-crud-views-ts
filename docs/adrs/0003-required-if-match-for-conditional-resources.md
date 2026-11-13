@@ -35,17 +35,21 @@ We will make a conditional write fail closed:
   save is refused with `MissingEtagError` and nothing is sent. The same holds
   for the form, the table's inline edit and revision Restore. Resources
   without `conditional_requests` are unchanged.
-- The form uses the validator of the record as it loaded it. The SDK cache
-  drops it on every write, so after the form's own save the record is read
-  again, and the new validator is used only if the record still shows what the
-  form saved (else the save is treated as a conflict, `StaleRecordError`).
-- The table's inline edit and Restore read the record once through the SDK when
-  the store holds no validator for it. Inline edit then also requires the
-  edited fields to equal what the row showed (else `StaleRecordError`, shown as
-  "changed elsewhere"). Restore replaces the record on purpose, so it uses the
-  fresh validator without that comparison.
+- Without an app-supplied `etag` / `ifMatch`, the form, the table's inline
+  edit and revision Restore read the record through the SDK right before the
+  write (`GET`), so the validator in the SDK cache is the one of what was just
+  read. The form compares the read with what it loaded or last saved (all
+  fields) and the inline edit compares the edited fields with the row; a
+  difference rejects with `StaleRecordError` (shown as a conflict, nothing
+  sent). Restore replaces the record on purpose and uses the fresh validator
+  without that comparison. We chose "read, compare, send" over "capture the
+  validator at load" because the SDK cache holds only the newest validator per
+  record and drops it on every write, and a background refetch (window focus)
+  would otherwise replace the one the user's edit was based on.
 - "Overwrite" after a `412` re-reads the record and sends its current ETag
   instead of sending no `If-Match`: a third writer still gets a `412`.
+- `publish`, trash restore, `clone` and bulk calls are not made conditional:
+  the SDK methods take no `If-Match`. `delete` takes only the id.
 
 We will not read the ETag from a response header ourselves (the SDK owns the
 transport) and will not depend on `@craftainer/crud-sdk/cache` at runtime: the
@@ -58,9 +62,14 @@ store is structural, so any SDK version with `cachedEtag` works.
   `ifMatch`). An app that relied on `autoIfMatch` for Restore must also pass
   `etags`. Migration notes are in the README.
 - A conflict is now reachable by default, so the `412` UI is exercised.
-- Inline edit and Restore cost one extra `GET` when no validator is cached.
-- The fresh-read fallback has a window between the read and the PATCH that
-  only the server's atomic check closes; the views cannot do better without
-  the list endpoint returning ETags.
+- Every form save, inline edit and Restore costs one extra `GET`.
+- Between the read and the PATCH there is a window (and the cache keeps only
+  the newest validator, so another view's read of the same record can replace
+  it) that only the server's atomic check closes; the views cannot do better
+  without the list endpoint returning ETags or the SDK returning the validator
+  with the read.
+- The `@craftainer/crud-sdk` peer range is unchanged (0.4 to 0.6): validator
+  retention for `no-store` responses needs 0.8. Widening to 0.8/0.9 is a
+  follow-up once 0.9.0 passes `minimumReleaseAge`.
 - The `undo` delete variant is unchanged: `delete` takes only the id, so a
   delete is not conditional.

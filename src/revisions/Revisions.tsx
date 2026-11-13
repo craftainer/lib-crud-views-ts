@@ -141,10 +141,11 @@ function RevisionListVariant({
           // (busy) while the ETag is looked up, so this runs once per restore.
           const revision = target as Revision;
           setResolving(true);
-          // Restore overwrites the record on purpose, so a validator that is
-          // missing is read from the server once; the PATCH is still
-          // conditional on it.
-          void resolveEtag(id, { fetch: "missing" }).then(
+          // Restore overwrites the record on purpose, so the record is read
+          // first and its current validator sent: a cached one could be stale
+          // and the 412 would leave no way forward. A write that lands between
+          // that read and the PATCH still answers 412.
+          void resolveEtag(id, { fetch: "always" }).then(
             (ifMatch) => {
               setResolving(false);
               update.mutate(

@@ -48,16 +48,17 @@ export class StaleRecordError extends Error {
 }
 
 /** How a lookup may read the record through the SDK to learn its validator. */
-export type EtagFetch = "never" | "missing" | "always";
+export type EtagFetch = "never" | "always";
 
 /** Looks up the `If-Match` value for a write; see {@link useEtagResolver}. */
 export type EtagResolver = (
   id: number,
   options: {
     /**
-     * `"missing"` reads the record (`GET`) once if no validator is known yet;
-     * `"always"` reads it before every lookup, so the validator is the one of
-     * what `verify` just checked.
+     * `"always"` reads the record (`GET`) before the lookup, so the validator is the one of
+     * what `verify` just checked (the cache holds only the newest one, so a
+     * read by another view in the instant between the two can still replace it:
+     * the server's atomic `If-Match` check is the last line).
      */
     readonly fetch: EtagFetch;
     /**
@@ -108,15 +109,13 @@ export function useEtagResolver(
         if (source !== undefined) return source(id, options.context);
         return fromStore();
       };
-      const { fetch } = options;
-      let tag = fetch === "always" ? undefined : await lookup();
-      if (tag === undefined && fetch !== "never") {
+      if (options.fetch === "always") {
         const fresh = (await handle.get(id)) as JsonObject;
         if (options.verify?.(fresh) === false) {
           throw new StaleRecordError(name, id);
         }
-        tag = await lookup();
       }
+      const tag = await lookup();
       if (tag === undefined || tag === "") throw new MissingEtagError(name, id);
       return tag;
     },

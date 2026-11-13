@@ -70,7 +70,7 @@ the resource refreshes it. It needs `@craftainer/crud-sdk` 0.3 or later
 
 ### Supported `@craftainer/crud-sdk` versions
 
-`^0.4.0 || ^0.5.0 || ^0.6.0`; `etags` (ETags for `If-Match`) needs the SDK cache with `cachedEtag` (0.6, and validator retention for BFF `no-store` responses from 0.8). From 0.5 the SDK refuses to send an `Authorization` header
+`^0.4.0 || ^0.5.0 || ^0.6.0` (tested with 0.6.0). `etags` needs the SDK cache's `cachedEtag`. The SDK keeps validators of `no-store` (BFF) responses only from 0.8, which is outside this range for now: widening it to 0.8 and 0.9 is a follow-up (0.9.0 had not passed `minimumReleaseAge` when this was written), so a BFF app on 0.6 must pass `etag`/`ifMatch` callbacks instead. From 0.5 the SDK refuses to send an `Authorization` header
 over plain `http` to a non-loopback host (`InsecureTransportError`): use
 `https`, or pass `allowInsecureHttp: true` to `createClient` (0.5 only).
 
@@ -104,19 +104,27 @@ const client = createClient({ baseUrl, middleware: [cache.middleware] });
 same cache object as `etags`.) `etags` is structural (`cachedEtag(resource,
 id, scope, apiVersion)`), so no runtime import of the SDK cache is needed.
 
-- Form: the validator of the record as the form loaded it. A per-form `etag(id)`
-  callback still wins. After the form's own save the SDK drops the validator, so
-  the form reads the record again and uses the new one only if the record still
-  shows what the form saved; otherwise the save is a conflict.
+- Form: without an `etag(id)` callback the form reads the record right before
+  each save and compares it, field by field, with what it loaded or last saved;
+  any change (also to a field the form does not show) is a conflict and nothing
+  is sent, else the PATCH carries the ETag of that read. This costs one extra
+  `GET` per save. A per-form `etag(id)` callback replaces this (it is the app's
+  responsibility to return the ETag of the record as the user saw it).
 - Inline edit: the list endpoint returns no ETags, so the table reads the
-  record once through the SDK when the store has none, and refuses the edit
-  ("changed elsewhere") when the edited field no longer has the value the row
-  showed. `ifMatch(row)` (a string, a promise, or `undefined` for "unknown")
-  overrides this; `undefined` is now refused, not sent.
-- Revision Restore: replaces the record on purpose, so it reads the record for
-  a fresh validator when none is cached and sends it; a concurrent edit
-  afterwards still answers `412`, shown as an alert.
+  record right before the edit and refuses it ("changed elsewhere") when the
+  edited field no longer has the value the row showed. `ifMatch(row)` (a
+  string, a promise, or `undefined` for "unknown") replaces this; `undefined` is
+  now refused, not sent.
+- Revision Restore: replaces the record on purpose, so it reads the record and
+  sends its current ETag; a write that lands between that read and the PATCH
+  still answers `412`, shown as an alert.
 - Overwrite after a `412` re-reads the record and sends its current ETag.
+- Not covered: `publish`, trash restore, `clone` and bulk calls go through SDK
+  methods without an `If-Match` option, so they are not conditional, and
+  `delete` takes only the id. The server's own checks apply to them.
+- The SDK cache keeps only the newest validator per record, so a read of the
+  same record by another view in the instant between the view's read and its
+  PATCH can replace it; the server's atomic `If-Match` check is the last line.
 
 The inline edit waits for the lookup and stays in a saving state (the cell
 stays in edit mode and the table is `aria-busy`); a rejection sends nothing and
@@ -252,6 +260,7 @@ exports as `-5`.
   instead of sending it unconditionally; an `ifMatch` that returns `undefined`
   is refused too. If you relied on `autoIfMatch` for Restore, add `etags`.
 - Overwrite after a `412` now sends the re-read ETag (no longer no header).
+- The form and inline edit read the record before each save (one extra `GET`).
 - `QueryContext` (exported from the filter area, used by `decodeState`) has
   two new required members, `archiveRestore` and `draftPublish`.
 - `l_archived` / `l_drafts` links no longer take effect without the matching

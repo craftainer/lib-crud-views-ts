@@ -48,10 +48,10 @@ export interface DataTableListProps {
   /**
    * The ETag of a row, sent as `If-Match` on an inline edit (a stale one fails
    * with 412 and the view reloads the row). The list endpoint returns no ETags.
-   * Without this prop the view uses `CrudProvider`'s `etags` (the SDK cache),
-   * reading the record once through the SDK when no validator is known yet and
-   * refusing the edit when the record no longer shows the value the user
-   * edited. May return a promise: the edit waits for it, stays in a saving
+   * Without this prop the view reads the record through the SDK right before
+   * the edit, refuses the edit when the record no longer shows the value the
+   * user edited, and takes the ETag of that read from `CrudProvider`'s `etags`
+   * (the SDK cache). May return a promise: the edit waits for it, stays in a saving
    * state meanwhile, and is not sent if it rejects (the error is shown like
    * any save error). When the resource declares `conditional_requests` and no
    * ETag is known the edit is refused (`MissingEtagError`), never sent
