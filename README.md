@@ -70,7 +70,7 @@ the resource refreshes it. It needs `@craftainer/crud-sdk` 0.3 or later
 
 ### Supported `@craftainer/crud-sdk` versions
 
-`^0.4.0 || ^0.5.0 || ^0.6.0` (tested with 0.6.0). `etags` needs the SDK cache's `cachedEtag`. The SDK keeps validators of `no-store` (BFF) responses only from 0.8, which is outside this range for now: widening it to 0.8 and 0.9 is a follow-up (0.9.0 had not passed `minimumReleaseAge` when this was written), so a BFF app on 0.6 must pass `etag`/`ifMatch` callbacks instead. From 0.5 the SDK refuses to send an `Authorization` header
+`^0.4.0 || ^0.5.0 || ^0.6.0 || ^0.7.0 || ^0.8.0 || ^0.9.0` (tested with 0.8.1; 0.9.0 had not passed `minimumReleaseAge` when this was written, and its only breaking change, a required cache scope for cookie clients, is in `createClient`, which the views never call). `etags` needs the SDK cache's `cachedEtag`. The SDK keeps validators of `no-store` (BFF) responses only from 0.8, so a BFF app on 0.7 or earlier must pass `etag`/`ifMatch` callbacks instead. From 0.5 the SDK refuses to send an `Authorization` header
 over plain `http` to a non-loopback host (`InsecureTransportError`): use
 `https`, or pass `allowInsecureHttp: true` to `createClient` (0.5 only).
 

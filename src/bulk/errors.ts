@@ -35,6 +35,17 @@ function limitMessage(max: number): string {
 }
 
 /**
+ * Drops trailing dots and whitespace in one linear scan (a `/[.\s]+$/` regex
+ * backtracks quadratically on long whitespace runs that don't end the string).
+ */
+function trimTrailingStops(text: string): string {
+  let end = text.length;
+  while (end > 0 && (text[end - 1] === "." || text[end - 1]!.trim() === ""))
+    end--;
+  return text.slice(0, end);
+}
+
+/**
  * A message for a failed bulk call. The server answers `400` when a filter
  * matches more than `bulk.max_matched` records (or the request is bad for
  * another reason, which its own message then says). A publish that stopped
@@ -44,6 +55,6 @@ export function describeBulkError(error: Error, max: number): string {
   if (error instanceof PartialPublishError)
     return `Published ${error.published.length} of ${error.total}; failed at ${error.failedId}: ${error.message}`;
   return error instanceof BadRequest
-    ? `${error.message.replace(/[.\s]+$/, "")}. A bulk call touches at most ${max} records; if the filter matches more, narrow it.`
+    ? `${trimTrailingStops(error.message)}. A bulk call touches at most ${max} records; if the filter matches more, narrow it.`
     : error.message;
 }
