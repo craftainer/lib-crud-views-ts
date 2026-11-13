@@ -1,8 +1,7 @@
 import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { useCallback } from "react";
 import type { BulkResult, JsonObject } from "@craftainer/crud-sdk";
-import { deleteMutationOptions } from "@craftainer/crud-sdk/tanstack";
-import { useCrud, type ReadyResource } from "../core/index.ts";
+import { useCrud, useDeleteRecord, type ReadyResource } from "../core/index.ts";
 
 /**
  * Refreshes every cached query of one resource on this client (all API
@@ -70,20 +69,12 @@ export function useRestoreThen(
   });
 }
 
-/** The SDK's delete mutation, with a callback that survives the component's unmount. */
+/** The conditional delete mutation, with a callback that survives the component's unmount. */
 export function useDeleteThen(
   ready: ReadyResource,
   onSuccess: Done,
 ): UseMutationResult<unknown, Error, number> {
-  const { queryClient } = useCrud();
-  const base = deleteMutationOptions(
-    queryClient,
-    ready.namespace,
-    ready.queryName,
-    ready.api,
-  );
-  return useMutation({
-    ...base,
+  return useDeleteRecord(ready, (base) => ({
     onSettled: async (data, error, id) => {
       try {
         await base.onSettled(data, error, id);
@@ -91,7 +82,7 @@ export function useDeleteThen(
         if (error === null) onSuccess?.();
       }
     },
-  });
+  }));
 }
 
 /** `POST publish?id=`: turns a draft into a published record. */

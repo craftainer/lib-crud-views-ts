@@ -119,9 +119,17 @@ id, scope, apiVersion)`), so no runtime import of the SDK cache is needed.
   sends its current ETag; a write that lands between that read and the PATCH
   still answers `412`, shown as an alert.
 - Overwrite after a `412` re-reads the record and sends its current ETag.
+- Delete (`DeleteAction`, and the archive and draft delete buttons) reads the
+  record and deletes it with its strong ETag as `If-Match`, resolved when the
+  request is made (so an `undo` delete, also one committed on unmount, uses the
+  ETag of that moment); with none known it fails with `MissingEtagError` and
+  sends nothing. Like Restore, it deletes whatever the record is by then (a
+  stale read is the cache caveat below).
+- Weak validators (`W/"..."`) are treated as unknown everywhere: `If-Match` uses
+  strong comparison, so a weak one could never match.
 - Not covered: `publish`, trash restore, `clone` and bulk calls go through SDK
-  methods without an `If-Match` option, so they are not conditional, and
-  `delete` takes only the id. The server's own checks apply to them.
+  methods without an `If-Match` option, so they are not conditional. The
+  server's own checks apply to them.
 - The "read" goes through the SDK cache: with a cache policy whose `max_age` or
   `stale_while_revalidate` is above 0 it can be answered from the cache without
   the network (the body and the validator are then the cached pair, so a changed
@@ -271,6 +279,8 @@ exports as `-5`.
   two new required members, `archiveRestore` and `draftPublish`.
 - `l_archived` / `l_drafts` links no longer take effect without the matching
   capability.
+- A single delete on a conditional resource needs an ETag too (see above); a
+  weak `W/` ETag counts as unknown.
 - Delete-all-matching needs a readable count within `bulk.max_matched` before
   Delete is enabled.
 - `format: "email"` values that are not a single plain address render as text.

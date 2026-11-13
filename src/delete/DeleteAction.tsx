@@ -13,6 +13,7 @@ import {
   type FieldValue,
   type ReadyResource,
   type RendererOverrides,
+  useDeleteRecord,
 } from "../core/index.ts";
 import { ArchiveButton } from "../lifecycle/ArchiveControls.tsx";
 
@@ -140,7 +141,7 @@ function DeleteController({
 }: DeleteActionProps & { readonly ready: ReadyResource }): ReactElement | null {
   const { id, variant = "confirm", undoMs = 6000 } = props;
   const label = props.recordLabel ?? "record";
-  const remove = ready.hooks.useDelete();
+  const remove = useDeleteRecord(ready);
   const [confirming, setConfirming] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [error, setError] = useState<string | null>(null);

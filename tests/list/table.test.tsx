@@ -521,7 +521,7 @@ describe("inline editing", () => {
         gridProps={grid}
         columns={["id", "name"]}
         editable
-        ifMatch={() => 'W/"stale"'}
+        ifMatch={() => '"stale"'}
       />,
     );
     await edit(user, "Captain Ledger", "Captain Index");

@@ -290,7 +290,7 @@ describe("edit", () => {
 
   it("does not send If-Match when the resource has no conditional requests", async () => {
     const heroes = fresh();
-    const etagFn = vi.fn(() => 'W/"stale"');
+    const etagFn = vi.fn(() => '"stale"');
     renderCrud(<ResourceForm name="heroes" id={1} etag={etagFn} />, {
       heroes,
       manifestPatch: (m) => {
@@ -344,6 +344,21 @@ describe("edit", () => {
     await screen.findByText("Saved");
     expect(view.stub.requests.some((r) => r.startsWith("PATCH"))).toBe(true);
     expect(heroes[0]?.["name"]).toBe("Captain Ledger!");
+  });
+
+  it("treats a weak ETag from the callback as unknown and sends nothing", async () => {
+    const heroes = fresh();
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} etag={() => 'W/"1-x"'} />,
+      { heroes },
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Name/), "!");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /ETag is unknown/,
+    );
+    expect(view.stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
   });
 
   it("shows a conflict on 412 and reloads the current record", async () => {
@@ -566,7 +581,7 @@ describe("edit", () => {
 
   it("is unused etag helper for stale ETags", () => {
     const heroes = fresh();
-    expect(etag(heroes)(1)).toMatch(/^W\/"1-/);
+    expect(etag(heroes)(1)).toMatch(/^"1-/);
   });
 });
 

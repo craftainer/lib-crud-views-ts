@@ -13,6 +13,7 @@ The trash list (archived records with Restore) is `lifecycle/TrashList` /
 
 ## Behaviour to know
 
+- On a conditional resource the delete reads the record and sends its ETag when the request is made (at commit for `undo`).
 - `undo` commits the pending delete when the component unmounts inside
   `undoMs`. That is deliberate: dropping a delete the user was told about would
   be worse. The risk is a host that remounts the row (a refetch that changes

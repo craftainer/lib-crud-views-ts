@@ -24,7 +24,7 @@ export type EtagSource = (
 
 /**
  * Thrown (and shown as the save error) when a resource declares
- * `conditional_requests` and no ETag is known for the record: the write is
+ * `conditional_requests` and no strong ETag is known (a weak `W/` one counts as unknown) for the record: the write is
  * refused instead of being sent unconditionally.
  */
 export class MissingEtagError extends Error {
@@ -111,12 +111,19 @@ export function useEtagResolver(
       const scope = etags === undefined ? "" : await client.scope();
       const fromStore = async (): Promise<string | undefined> =>
         etags?.cachedEtag(name, id, scope, apiVersion);
+      // If-Match uses strong comparison (RFC 9110 section 13.1.1): a weak
+      // validator can never match, so it counts as unknown.
+      const strong = (tag: string | undefined): string | undefined =>
+        tag === undefined || tag === "" || tag.startsWith("W/")
+          ? undefined
+          : tag;
       const lookup = async (): Promise<string | undefined> => {
         const first = options.preferStore === true ? fromStore : undefined;
-        const tag = await first?.();
+        const tag = strong(await first?.());
         if (tag !== undefined) return tag;
-        if (source !== undefined) return source(id, options.context);
-        return fromStore();
+        if (source !== undefined)
+          return strong(await source(id, options.context));
+        return strong(await fromStore());
       };
       if (options.fetch === "always") {
         const fresh = (await handle.get(id)) as JsonObject;
@@ -125,7 +132,7 @@ export function useEtagResolver(
         }
       }
       const tag = await lookup();
-      if (tag === undefined || tag === "") throw new MissingEtagError(name, id);
+      if (tag === undefined) throw new MissingEtagError(name, id);
       return tag;
     },
     [conditional, apiVersion, source, etags, client, name, handle],

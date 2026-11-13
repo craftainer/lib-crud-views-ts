@@ -203,7 +203,7 @@ describe("useResource", () => {
       await update.result.current.mutateAsync({
         id: 100,
         patch: { name: "Renamed" },
-        ifMatch: '"v1"',
+        ifMatch: "*",
       });
     });
     const remove = renderHook(() => view.hooks.useDelete(), { wrapper: w });

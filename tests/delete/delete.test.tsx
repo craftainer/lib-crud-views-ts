@@ -13,6 +13,7 @@ import {
   type DeleteActionProps,
   type DisplayRendererProps,
 } from "../../src/index.ts";
+import { etagOf } from "../fixtures/routes/form.ts";
 import { heroRows, type StubOptions } from "../fixtures/stub.ts";
 import { renderCrud } from "../helpers.tsx";
 
@@ -45,6 +46,129 @@ describe("DeleteAction", () => {
     );
     await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(1));
     expect(calls(view, "DELETE")).toEqual([`DELETE ${HEROES}?id=1`]);
+  });
+
+  it("deletes without a read or an ETag when the resource is not conditional", async () => {
+    const onDeleted = vi.fn();
+    const view = renderCrud(
+      <DeleteAction
+        name="heroes"
+        id={1}
+        variant="immediate"
+        onDeleted={onDeleted}
+      />,
+      {
+        manifestPatch: (m) => {
+          for (const r of m.resources)
+            r.capabilities.conditional_requests = false;
+        },
+      },
+      { etags: undefined },
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Delete record 1" }),
+    );
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(1));
+    expect(calls(view, "DELETE")).toHaveLength(1);
+  });
+
+  describe("on a conditional resource", () => {
+    const store = (tag: string | undefined) => ({
+      cachedEtag: () => Promise.resolve(tag),
+    });
+    it("refuses to delete, sending nothing, when no ETag is known", async () => {
+      const heroes = fresh();
+      const onDeleteError = vi.fn();
+      const view = renderCrud(
+        <DeleteAction
+          name="heroes"
+          id={1}
+          variant="immediate"
+          onDeleteError={onDeleteError}
+        />,
+        { heroes },
+        { etags: undefined },
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Delete record 1" }),
+      );
+      expect(await screen.findByText(/ETag is unknown/)).toBeInTheDocument();
+      expect(calls(view, "DELETE")).toEqual([]);
+      expect(heroes).toHaveLength(heroRows.length);
+    });
+
+    it("treats a weak ETag as unknown", async () => {
+      const weak = renderCrud(
+        <DeleteAction name="heroes" id={1} variant="immediate" />,
+        {},
+        { etags: store('W/"1-x"') },
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Delete record 1" }),
+      );
+      expect(await screen.findByText(/ETag is unknown/)).toBeInTheDocument();
+      expect(calls(weak, "DELETE")).toEqual([]);
+    });
+
+    it("sends the ETag as If-Match: a stale one answers 412 and deletes nothing", async () => {
+      const heroes = fresh();
+      const view = renderCrud(
+        <DeleteAction name="heroes" id={1} variant="immediate" />,
+        { heroes },
+        { etags: store('"1-stale"') },
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Delete record 1" }),
+      );
+      expect(await screen.findByText(/412/)).toBeInTheDocument();
+      expect(heroes.some((r) => r["id"] === 1)).toBe(true);
+      expect(calls(view, "DELETE")).toHaveLength(1);
+    });
+
+    it("deletes with the current ETag", async () => {
+      const heroes = fresh();
+      const onDeleted = vi.fn();
+      const view = renderCrud(
+        <DeleteAction
+          name="heroes"
+          id={1}
+          variant="immediate"
+          onDeleted={onDeleted}
+        />,
+        { heroes },
+        { etags: store(etagOf(heroes[0] as JsonObject)) },
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Delete record 1" }),
+      );
+      await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(1));
+      expect(calls(view, "DELETE")).toHaveLength(1);
+    });
+
+    it("resolves the ETag at commit time, also after an unmount", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const onDeleteError = vi.fn();
+      const view = renderCrud(
+        <DeleteAction
+          name="heroes"
+          id={1}
+          variant="undo"
+          onDeleteError={onDeleteError}
+        />,
+        {},
+        { etags: undefined },
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Delete record 1" }),
+      );
+      view.unmount();
+      await waitFor(() => expect(onDeleteError).toHaveBeenCalledOnce());
+      expect(onDeleteError.mock.calls[0]?.[1]).toHaveProperty(
+        "name",
+        "MissingEtagError",
+      );
+      expect(calls(view, "DELETE")).toEqual([]);
+    });
   });
 
   it("renders nothing while the manifest loads or fails", async () => {
@@ -217,7 +341,7 @@ describe("DeleteAction", () => {
       view.unmount();
       await waitFor(() => expect(onDeleteError).toHaveBeenCalledOnce());
       expect(onDeleteError).toHaveBeenCalledWith(99, expect.any(Error));
-      expect(calls(view, "DELETE")).toEqual([`DELETE ${HEROES}?id=99`]);
+      expect(calls(view, "DELETE")).toEqual([]);
     });
 
     it("logs with console.error when there is no onDeleteError", async () => {
