@@ -26,13 +26,20 @@ function asText(value: FieldValue): string {
 /** Characters that could add a mailto header, a second recipient or markup. */
 const UNSAFE_IN_MAILBOX = /[\s?&#%,;:"<>()[\]\\]/;
 
+/** C0 and C1 control characters (and DEL), which a URL parser may drop or encode. */
+const hasControl = (text: string): boolean =>
+  Array.from(text).some((c) => {
+    const code = c.charCodeAt(0);
+    return code < 0x20 || (code >= 0x7f && code <= 0x9f);
+  });
+
 /**
  * A single plain address, checked without a backtracking pattern: one `@`, a
  * non-empty local part, a dotted domain with no empty label, and none of the
  * characters a mailto link could use to add a `bcc` or `body`.
  */
 const isMailbox = (text: string): boolean => {
-  if (UNSAFE_IN_MAILBOX.test(text)) return false;
+  if (UNSAFE_IN_MAILBOX.test(text) || hasControl(text)) return false;
   const at = text.indexOf("@");
   if (at < 1 || at !== text.lastIndexOf("@")) return false;
   const labels = text.slice(at + 1).split(".");

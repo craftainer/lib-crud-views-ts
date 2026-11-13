@@ -58,7 +58,13 @@ export type EtagResolver = (
      * `"always"` reads the record (`GET`) before the lookup, so the validator is the one of
      * what `verify` just checked (the cache holds only the newest one, so a
      * read by another view in the instant between the two can still replace it:
-     * the server's atomic `If-Match` check is the last line).
+     * the server's atomic `If-Match` check is the last line). The read goes
+     * through the SDK cache, which may answer a fresh or stale-while-revalidate
+     * entry without the network (the validator is then that entry's, so a
+     * changed record answers `412`; but a background refresh landing in the
+     * instant between the two can pair the old body with the new validator).
+     * Give conditional resources a cache policy with `max_age` and
+     * `stale_while_revalidate` of 0, or use a BFF (`no-store`).
      */
     readonly fetch: EtagFetch;
     /**
@@ -100,8 +106,11 @@ export function useEtagResolver(
       if (source === undefined && etags === undefined) {
         throw new MissingEtagError(name, id);
       }
+      // Resolved before the read, so nothing but the store lookup separates
+      // the read from the validator it is paired with.
+      const scope = etags === undefined ? "" : await client.scope();
       const fromStore = async (): Promise<string | undefined> =>
-        etags?.cachedEtag(name, id, await client.scope(), apiVersion);
+        etags?.cachedEtag(name, id, scope, apiVersion);
       const lookup = async (): Promise<string | undefined> => {
         const first = options.preferStore === true ? fromStore : undefined;
         const tag = await first?.();

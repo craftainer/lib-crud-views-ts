@@ -330,6 +330,22 @@ describe("edit", () => {
     expect(heroes[0]?.["name"]).toBe("Captain Ledger");
   });
 
+  it("uses the etag callback alone when the provider has no etags", async () => {
+    const heroes = fresh();
+    const tag = etagOf(heroes[0] as JsonObject);
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} etag={() => tag} />,
+      { heroes },
+      { etags: undefined },
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Name/), "!");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Saved");
+    expect(view.stub.requests.some((r) => r.startsWith("PATCH"))).toBe(true);
+    expect(heroes[0]?.["name"]).toBe("Captain Ledger!");
+  });
+
   it("shows a conflict on 412 and reloads the current record", async () => {
     const heroes = fresh();
     const stale = etagOf(heroes[0] as JsonObject);

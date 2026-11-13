@@ -122,6 +122,12 @@ id, scope, apiVersion)`), so no runtime import of the SDK cache is needed.
 - Not covered: `publish`, trash restore, `clone` and bulk calls go through SDK
   methods without an `If-Match` option, so they are not conditional, and
   `delete` takes only the id. The server's own checks apply to them.
+- The "read" goes through the SDK cache: with a cache policy whose `max_age` or
+  `stale_while_revalidate` is above 0 it can be answered from the cache without
+  the network (the body and the validator are then the cached pair, so a changed
+  record answers `412`), and a stale-while-revalidate refresh landing between the
+  read and the PATCH can pair the old body with the new validator. For
+  conditional resources use a policy with both at 0, or a BFF (`no-store`).
 - The SDK cache keeps only the newest validator per record, so a read of the
   same record by another view in the instant between the view's read and its
   PATCH can replace it; the server's atomic `If-Match` check is the last line.
