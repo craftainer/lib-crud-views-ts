@@ -10,7 +10,7 @@ const settle = async (): Promise<void> => {
   await new Promise((r) => setTimeout(r, 900));
 };
 // Never matches the stub's ETag: the first save is a 412.
-const staleEtag = (): string => 'W/"1-999"';
+const staleEtag = (): string => '"1-999"';
 
 const meta = {
   title: "Form/Resource form",

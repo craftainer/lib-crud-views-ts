@@ -134,6 +134,7 @@ describe("useQueryState", () => {
     const ready = {
       fields: [field({ name: "name", filterOps: ["icontains"] })],
       resource: { pagination: { max_limit: 100 } },
+      capabilities: { archive_restore: false, draft_publish: false },
     } as unknown as ReadyResource;
     const html = renderToString(
       <Probe ready={ready} adapter={memoryUrlAdapter("l_page=4")} />,

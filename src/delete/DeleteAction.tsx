@@ -13,6 +13,7 @@ import {
   type FieldValue,
   type ReadyResource,
   type RendererOverrides,
+  useDeleteRecord,
 } from "../core/index.ts";
 import { ArchiveButton } from "../lifecycle/ArchiveControls.tsx";
 
@@ -140,7 +141,7 @@ function DeleteController({
 }: DeleteActionProps & { readonly ready: ReadyResource }): ReactElement | null {
   const { id, variant = "confirm", undoMs = 6000 } = props;
   const label = props.recordLabel ?? "record";
-  const remove = ready.hooks.useDelete();
+  const remove = useDeleteRecord(ready);
   const [confirming, setConfirming] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -182,6 +183,10 @@ function DeleteController({
   };
 
   // Leaving while an `undo` deletion waits commits it: the user asked for it.
+  // Kept on purpose (documented in src/delete/README.md): cancelling on unmount
+  // would silently drop a delete the user was told about. The cost is that a
+  // remount of the host row inside `undoMs` (a refetch that changes keys, a
+  // route change) commits it without the user reaching the Undo button.
   const pending = useRef<(() => Promise<boolean>) | undefined>(undefined);
   useEffect(
     () => () => {

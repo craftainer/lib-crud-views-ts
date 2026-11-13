@@ -208,7 +208,7 @@ describe("edit", () => {
     await user.type(screen.getByLabelText(/Name/), "!");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(etagFn).toHaveBeenCalledWith(1);
+    expect(etagFn.mock.calls[0]?.[0]).toBe(1);
     expect(heroes[0]).toMatchObject({
       name: "Captain Ledger!",
       power_level: 72,
@@ -290,7 +290,7 @@ describe("edit", () => {
 
   it("does not send If-Match when the resource has no conditional requests", async () => {
     const heroes = fresh();
-    const etagFn = vi.fn(() => 'W/"stale"');
+    const etagFn = vi.fn(() => '"stale"');
     renderCrud(<ResourceForm name="heroes" id={1} etag={etagFn} />, {
       heroes,
       manifestPatch: (m) => {
@@ -305,12 +305,60 @@ describe("edit", () => {
     expect(etagFn).not.toHaveBeenCalled();
   });
 
-  it("sends no If-Match without an etag callback", async () => {
+  it("takes the ETag from the provider's etags without an etag callback", async () => {
     const view = setup({ id: 1 });
     await view.user.type(await screen.findByLabelText(/Name/), "!");
     await view.user.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("Saved");
     expect(view.heroes[0]?.["name"]).toBe("Captain Ledger!");
+  });
+
+  it("refuses to save, sending nothing, when no ETag is known for a conditional resource", async () => {
+    const heroes = fresh();
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} />,
+      { heroes },
+      { etags: undefined },
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Name/), "!");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /ETag is unknown/,
+    );
+    expect(view.stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
+    expect(heroes[0]?.["name"]).toBe("Captain Ledger");
+  });
+
+  it("uses the etag callback alone when the provider has no etags", async () => {
+    const heroes = fresh();
+    const tag = etagOf(heroes[0] as JsonObject);
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} etag={() => tag} />,
+      { heroes },
+      { etags: undefined },
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Name/), "!");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Saved");
+    expect(view.stub.requests.some((r) => r.startsWith("PATCH"))).toBe(true);
+    expect(heroes[0]?.["name"]).toBe("Captain Ledger!");
+  });
+
+  it("treats a weak ETag from the callback as unknown and sends nothing", async () => {
+    const heroes = fresh();
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} etag={() => 'W/"1-x"'} />,
+      { heroes },
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Name/), "!");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /ETag is unknown/,
+    );
+    expect(view.stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
   });
 
   it("shows a conflict on 412 and reloads the current record", async () => {
@@ -340,18 +388,24 @@ describe("edit", () => {
     ).toHaveLength(1);
   });
 
-  it("overwrites on request after a 412, without If-Match", async () => {
+  it("overwrites on request after a 412, with the ETag of the re-read record, not the loaded-time one", async () => {
     const heroes = fresh();
     const stale = etagOf(heroes[0] as JsonObject);
-    renderCrud(<ResourceForm name="heroes" id={1} etag={() => stale} />, {
-      heroes,
-    });
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} etag={() => stale} />,
+      { heroes },
+    );
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText(/Name/), "!");
     touch(heroes[0] as JsonObject);
     await user.click(screen.getByRole("button", { name: "Save" }));
-    await user.click(await screen.findByRole("button", { name: "Overwrite" }));
+    await screen.findByRole("button", { name: "Overwrite" });
+    // The callback still returns the loaded-time ETag: Overwrite uses the re-read one.
+    await user.click(screen.getByRole("button", { name: "Overwrite" }));
     await screen.findByText("Saved");
+    expect(
+      view.stub.requests.filter((r) => r.startsWith("PATCH")),
+    ).toHaveLength(2);
     expect(heroes[0]?.["name"]).toBe("Captain Ledger!");
     expect(screen.queryByText(/changed since you opened/)).toBeNull();
   });
@@ -416,9 +470,118 @@ describe("edit", () => {
     expect(screen.getByLabelText(/Name/)).toHaveValue("Captain Ledger!");
   });
 
+  /** A store like the SDK cache: a write drops the validator, a read brings it back. */
+  const cacheLike = (
+    heroes: JsonObject[],
+    requests: () => readonly string[],
+  ) => {
+    let dropped = false;
+    let seen = 0;
+    return {
+      cachedEtag: () => {
+        const log = requests();
+        // A PATCH drops the validator until a later GET.
+        const patch = log.findLastIndex((r) => r.startsWith("PATCH"));
+        const get = log.findLastIndex(
+          (r) => r.startsWith("GET ") && r.includes("?id="),
+        );
+        dropped = patch > get;
+        seen += 1;
+        return Promise.resolve(
+          dropped ? undefined : etagOf(heroes[0] as JsonObject),
+        );
+      },
+      calls: () => seen,
+    };
+  };
+
+  it("reads the record again after its own save to get the new validator", async () => {
+    const heroes = fresh();
+    let log: readonly string[] = [];
+    const etags = cacheLike(heroes, () => log);
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} />,
+      { heroes },
+      { etags },
+    );
+    log = view.stub.requests;
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Name/), "!");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Saved");
+    await user.type(screen.getByLabelText(/Name/), "?");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(heroes[0]?.["name"]).toBe("Captain Ledger!?"));
+    expect(requests(view, "PATCH")).toHaveLength(2);
+  });
+
+  it("treats the second save as a conflict when someone else changed the record after the first", async () => {
+    const heroes = fresh();
+    let log: readonly string[] = [];
+    const etags = cacheLike(heroes, () => log);
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} />,
+      { heroes },
+      { etags },
+    );
+    log = view.stub.requests;
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Name/), "!");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Saved");
+    heroes[0]!["name"] = "Changed elsewhere";
+    await user.type(screen.getByLabelText(/Name/), "?");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByText(/This record was changed since you opened it/),
+    ).toBeInTheDocument();
+    expect(requests(view, "PATCH")).toHaveLength(1);
+    // Overwrite replaces the other writer's change on purpose, also after a save of this form.
+    await user.click(screen.getByRole("button", { name: "Overwrite" }));
+    await screen.findByText("Saved");
+    expect(requests(view, "PATCH")).toHaveLength(2);
+    expect(heroes[0]?.["name"]).toBe("Captain Ledger!?");
+  });
+
+  it("shows the error and sends nothing when Overwrite cannot re-read the record", async () => {
+    const heroes = fresh();
+    const stale = etagOf(heroes[0] as JsonObject);
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} etag={() => stale} />,
+      { heroes },
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Name/), "!");
+    touch(heroes[0] as JsonObject);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("button", { name: "Overwrite" });
+    view.stub.tables.get("/api/crud/v1/heroes/v2/json")?.splice(0, 1);
+    await user.click(screen.getByRole("button", { name: "Overwrite" }));
+    await waitFor(() => expect(requests(view, "PATCH")).toHaveLength(1));
+    expect(screen.queryByText("Saved")).toBeNull();
+  });
+
+  it("treats a change to a field the form does not show as a conflict", async () => {
+    const heroes = fresh();
+    const view = renderCrud(
+      <ResourceForm name="heroes" id={1} fields={["name"]} />,
+      { heroes },
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/Name/), "!");
+    // Someone else changes another field after the form loaded the record.
+    heroes[0]!["power_level"] = 99;
+    touch(heroes[0] as JsonObject);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByText(/This record was changed since you opened it/),
+    ).toBeInTheDocument();
+    expect(requests(view, "PATCH")).toHaveLength(0);
+  });
+
   it("is unused etag helper for stale ETags", () => {
     const heroes = fresh();
-    expect(etag(heroes)(1)).toMatch(/^W\/"1-/);
+    expect(etag(heroes)(1)).toMatch(/^"1-/);
   });
 });
 

@@ -22,6 +22,7 @@ import { useState, type ReactElement } from "react";
 import {
   FieldDisplay,
   ResourceGate,
+  useEtagResolver,
   type FieldDescriptor,
   type FieldValue,
   type ReadyResource,
@@ -84,12 +85,15 @@ function RevisionListVariant({
   onRestored,
 }: VariantProps): ReactElement {
   const update = ready.hooks.useUpdate();
+  const resolveEtag = useEtagResolver(ready);
   const [target, setTarget] = useState<Revision | null>(null);
+  // A failure to find the ETag happens before the mutation runs.
+  const [etagError, setEtagError] = useState<Error | null>(null);
+  const [resolving, setResolving] = useState(false);
+  const error = etagError ?? update.error;
   return (
     <>
-      {update.error !== null && (
-        <Alert severity="error">{update.error.message}</Alert>
-      )}
+      {error !== null && <Alert severity="error">{error.message}</Alert>}
       <List aria-label="Revisions" disablePadding>
         {revisions.map((revision) => (
           <ListItem
@@ -101,6 +105,7 @@ function RevisionListVariant({
                 aria-label={`Restore revision ${revision.id}`}
                 onClick={() => {
                   update.reset();
+                  setEtagError(null);
                   setTarget(revision);
                 }}
               >
@@ -126,21 +131,46 @@ function RevisionListVariant({
         open={target !== null}
         title="Restore this revision?"
         confirmLabel="Restore"
-        busy={update.isPending}
-        onClose={() => setTarget(null)}
+        busy={update.isPending || resolving}
+        // Not while the ETag is looked up: a cancel must not be followed by a restore.
+        onClose={() => {
+          if (!resolving) setTarget(null);
+        }}
         onConfirm={() => {
-          // The dialog is only open with a target.
+          // The dialog is only open with a target, and its button is disabled
+          // (busy) while the ETag is looked up, so this runs once per restore.
           const revision = target as Revision;
-          update.mutate(
-            { id, patch: restorePatch(ready.fields, revision.snapshot) },
-            {
-              onSuccess: () => {
-                setTarget(null);
-                onRestored?.(revision);
-              },
-              // Close the dialog so the error alert (a 412 when the record
-              // changed since it was loaded) is not left behind the modal.
-              onError: () => setTarget(null),
+          setResolving(true);
+          // Restore overwrites the record on purpose, so the record is read
+          // first and its current validator sent: a cached one could be stale
+          // and the 412 would leave no way forward. A write that lands between
+          // that read and the PATCH still answers 412.
+          void resolveEtag(id, { fetch: "always" }).then(
+            (ifMatch) => {
+              setResolving(false);
+              update.mutate(
+                {
+                  id,
+                  patch: restorePatch(ready.fields, revision.snapshot),
+                  ...(ifMatch === undefined ? {} : { ifMatch }),
+                },
+                {
+                  onSuccess: () => {
+                    setTarget(null);
+                    onRestored?.(revision);
+                  },
+                  // Close the dialog so the error alert (a 412 when the record
+                  // changed since it was loaded) is not left behind the modal.
+                  onError: () => setTarget(null),
+                },
+              );
+            },
+            (failure: unknown) => {
+              setResolving(false);
+              setEtagError(
+                failure instanceof Error ? failure : new Error(String(failure)),
+              );
+              setTarget(null);
             },
           );
         }}

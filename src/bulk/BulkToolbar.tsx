@@ -4,7 +4,7 @@ import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { useState, type ReactElement } from "react";
+import { useRef, useState, type ReactElement } from "react";
 import {
   toQueryFilters,
   type FieldFilters,
@@ -78,6 +78,14 @@ export function BulkToolbar({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // "Delete all matching": the filters as the confirmation showed them, and
+  // how many records they match (`"many"`: over the limit, `"unknown"`: could not be read).
+  const [frozen, setFrozen] = useState<Filters | null>(null);
+  const [matching, setMatching] = useState<number | "many" | "unknown" | null>(
+    null,
+  );
+  const countRun = useRef(0);
+  const counting = useRef<AbortController | undefined>(undefined);
   const { capabilities, bulk, id_field } = ready.resource;
   const max = bulk.max_matched;
   const hasFilters = Object.keys(toQueryFilters(filters)).length > 0;
@@ -135,6 +143,38 @@ export function BulkToolbar({
     return rows;
   };
 
+  /** Freezes the filters for the confirmation and counts what they match (at most `max + 1` rows are read). */
+  const askDelete = (): void => {
+    const token = ++countRun.current;
+    counting.current?.abort();
+    const abort = new AbortController();
+    counting.current = abort;
+    const server = serverFilters(ready, selection, filters);
+    setFrozen(server);
+    setMatching(selection.allMatching ? null : count);
+    setConfirming(true);
+    if (!selection.allMatching) return;
+    void (async () => {
+      let found = 0;
+      try {
+        for await (const _row of ready.handle.iterAll({
+          filters: server,
+          includeUnpublished: listsDrafts(ready),
+          // Whole pages, and stop the loop when the dialog closes.
+          limit: ready.resource.pagination.max_limit,
+          signal: abort.signal,
+        })) {
+          found += 1;
+          if (found > max) break;
+        }
+      } catch {
+        if (token === countRun.current) setMatching("unknown");
+        return;
+      }
+      if (token === countRun.current) setMatching(found > max ? "many" : found);
+    })();
+  };
+
   const remove = (): Promise<void> =>
     run(
       "delete",
@@ -145,7 +185,8 @@ export function BulkToolbar({
         // hidden from the list, "all matching" must not reach them. Ticked
         // ids name their rows, so only "all matching" needs the flag.
         const result: BulkResult = await ready.handle.deleteMany(
-          serverFilters(ready, selection, filters),
+          // Set when the dialog opened: the filters the user was shown.
+          frozen as Filters,
           selection.allMatching
             ? { includeUnpublished: listsDrafts(ready) }
             : undefined,
@@ -238,7 +279,7 @@ export function BulkToolbar({
             size="small"
             color="error"
             disabled={busy}
-            onClick={() => setConfirming(true)}
+            onClick={askDelete}
           >
             Delete
           </Button>
@@ -257,13 +298,30 @@ export function BulkToolbar({
         open={confirming}
         title="Delete the selected records?"
         confirmLabel="Delete"
-        busy={busy}
-        onClose={() => setConfirming(false)}
+        // Fail closed: "all matching" waits for a count within the limit.
+        busy={
+          busy ||
+          (selection.allMatching &&
+            (matching === null ||
+              matching === "many" ||
+              matching === "unknown"))
+        }
+        onClose={() => {
+          countRun.current += 1;
+          (counting.current as AbortController).abort();
+          setConfirming(false);
+        }}
         onConfirm={() => void remove()}
       >
-        {selection.allMatching
-          ? "Every record matching the filter is deleted."
-          : `${count} ${count === 1 ? "record is" : "records are"} deleted.`}
+        {!selection.allMatching
+          ? `${count} ${count === 1 ? "record is" : "records are"} deleted.`
+          : matching === null
+            ? "Counting the records that match the filter..."
+            : matching === "unknown"
+              ? "The number of matching records could not be read, so nothing is deleted. Close this and try again."
+              : matching === "many"
+                ? `More than ${max} records match the filter, which is over the limit. Narrow the filter.`
+                : `${matching} ${matching === 1 ? "record matches" : "records match"} the filter and ${matching === 1 ? "is" : "are"} deleted.`}
       </ConfirmDialog>
     </Paper>
   );

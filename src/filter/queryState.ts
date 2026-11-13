@@ -58,6 +58,10 @@ export interface QueryContext {
   readonly searchField: string | undefined;
   /** The largest page size the server accepts, less one (the view asks for one extra row to learn whether a next page exists). */
   readonly maxPageSize: number;
+  /** `capabilities.archive_restore`: without it `l_archived` in a link is ignored. */
+  readonly archiveRestore: boolean;
+  /** `capabilities.draft_publish`: without it `l_drafts` in a link is ignored. */
+  readonly draftPublish: boolean;
 }
 
 export const DEFAULT_PAGE_SIZE = 25;
@@ -323,8 +327,9 @@ export function decodeState(search: string, ctx: QueryContext): QueryState {
     sort,
     page: positiveInt(params.get(n.page)) ?? 1,
     pageSize: Math.min(size ?? base.pageSize, ctx.maxPageSize),
-    includeArchived: params.get(n.archived) === "1",
-    includeUnpublished: params.get(n.drafts) === "1",
+    // A link cannot switch on what the caller's capabilities leave out.
+    includeArchived: ctx.archiveRestore && params.get(n.archived) === "1",
+    includeUnpublished: ctx.draftPublish && params.get(n.drafts) === "1",
   };
 }
 

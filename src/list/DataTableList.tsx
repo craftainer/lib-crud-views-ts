@@ -10,10 +10,12 @@ import {
   type GridSortModel,
 } from "@mui/x-data-grid";
 import { PreconditionFailed } from "@craftainer/crud-sdk";
-import { useMemo, useState, type ReactElement } from "react";
+import { useCallback, useMemo, useState, type ReactElement } from "react";
 import {
   FieldDisplay,
   FieldInput,
+  StaleRecordError,
+  useEtagResolver,
   type FieldDescriptor,
   type FieldValue,
   type ReadyResource,
@@ -45,12 +47,15 @@ export interface DataTableListProps {
   readonly editable?: boolean | undefined;
   /**
    * The ETag of a row, sent as `If-Match` on an inline edit (a stale one fails
-   * with 412 and the view reloads the row). The list endpoint returns no ETags,
-   * so the app supplies them (for example from its SDK cache); without this
-   * prop the edit is unconditional. May return a promise (same shape as
-   * `ResourceFormProps.etag`): the edit waits for it, stays in a saving state
-   * meanwhile, and is not sent if it rejects (the error is shown like any save
-   * error). `undefined` sends the PATCH without `If-Match`.
+   * with 412 and the view reloads the row). The list endpoint returns no ETags.
+   * Without this prop the view reads the record through the SDK right before
+   * the edit, refuses the edit when the record no longer shows the value the
+   * user edited, and takes the ETag of that read from `CrudProvider`'s `etags`
+   * (the SDK cache). May return a promise: the edit waits for it, stays in a saving
+   * state meanwhile, and is not sent if it rejects (the error is shown like
+   * any save error). When the resource declares `conditional_requests` and no
+   * ETag is known the edit is refused (`MissingEtagError`), never sent
+   * unconditionally.
    */
   readonly ifMatch?:
     | ((row: Row) => string | undefined | Promise<string | undefined>)
@@ -120,6 +125,18 @@ export function DataTableList({
   const { page, pageSize, sort } = state.state;
   const list = ready.hooks.useList(state.pagedQuery);
   const update = ready.hooks.useUpdate();
+  const rowSource = useCallback(
+    (
+      _id: number,
+      row?: unknown,
+    ): string | undefined | Promise<string | undefined> =>
+      ifMatch?.(row as Row),
+    [ifMatch],
+  );
+  const resolveEtag = useEtagResolver(
+    ready,
+    ifMatch === undefined ? undefined : rowSource,
+  );
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
   // Edits in flight (several rows can save at once).
@@ -220,9 +237,18 @@ export function DataTableList({
     if (Object.keys(patch).length === 0) return previous;
     setSaving((n) => n + 1);
     try {
-      const tag = await ifMatch?.(previous);
+      const id = previous[idField] as number;
+      const tag = await resolveEtag(id, {
+        // Without the app's `ifMatch`, read the record first so the validator
+        // is the one of the value that is compared below, never an older cached one.
+        fetch: ifMatch === undefined ? "always" : "never",
+        context: previous,
+        // The validator is only trusted if the edited fields are still what the row showed.
+        verify: (fresh) =>
+          Object.keys(patch).every((k) => same(fresh[k], previous[k])),
+      });
       const saved = await update.mutateAsync({
-        id: previous[idField] as number,
+        id,
         patch,
         ...(tag === undefined ? {} : { ifMatch: tag }),
       });
@@ -234,7 +260,10 @@ export function DataTableList({
   }
 
   function saveFailed(error: unknown): void {
-    if (error instanceof PreconditionFailed) {
+    if (
+      error instanceof PreconditionFailed ||
+      error instanceof StaleRecordError
+    ) {
       setNotice("This row changed elsewhere. It was reloaded; edit it again.");
       void list.refetch();
     } else {

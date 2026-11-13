@@ -6,7 +6,7 @@ to a library.
 - `main.ts` — story globs (`src/**/*.stories.tsx`) and addons.
 - `preview.tsx` and `Frame.tsx` — wrap every story in `CrudProvider` over a stub CRUD client
   (`tests/fixtures/stub.ts`), the demo theme and the light/dark toolbar switch
-  (`theme` global). `parameters.stub` sets how the fake server behaves.
+  (`theme` global); `etags` is a table-backed stand-in for the SDK cache. `parameters.stub` sets how the fake server behaves.
 - `demoTheme.ts` — a Field-Ledger-like MUI theme. It exists only for stories:
   the package itself is theme-agnostic.
 

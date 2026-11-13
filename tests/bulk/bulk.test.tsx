@@ -1,5 +1,15 @@
-import { BadRequest, type JsonObject } from "@craftainer/crud-sdk";
-import { act, renderHook, screen, waitFor } from "@testing-library/react";
+import {
+  BadRequest,
+  type JsonObject,
+  type Middleware,
+} from "@craftainer/crud-sdk";
+import {
+  act,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -256,8 +266,9 @@ describe("BulkRecords", () => {
       screen.getByRole("checkbox", { name: "Select record 1" }),
     ).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Every record matching the filter is deleted.",
+    // The confirmation counts the records the frozen filter matches.
+    await within(screen.getByRole("dialog")).findByText(
+      "1 record matches the filter and is deleted.",
     );
     await userEvent.click(within_dialog_button("Delete"));
     expect(await screen.findByText("Deleted 1 record.")).toBeInTheDocument();
@@ -266,7 +277,7 @@ describe("BulkRecords", () => {
     );
   });
 
-  it("explains the limit when the server answers 400", async () => {
+  it("explains the limit in the confirmation and keeps Delete disabled", async () => {
     const { stub } = renderCrud(
       <BulkRecords
         resource="heroes"
@@ -282,13 +293,77 @@ describe("BulkRecords", () => {
       screen.getByRole("button", { name: "Select all matching the filter" }),
     );
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
-    await userEvent.click(within_dialog_button("Delete"));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /A bulk call touches at most 1000 records/,
+    const dialog = screen.getByRole("dialog");
+    await within(dialog).findByText(
+      /More than 1000 records match the filter, which is over the limit/,
     );
-    expect(stub.requests.filter((r) => r.startsWith("DELETE"))).toHaveLength(1);
-    expect(screen.getByText(/All records matching/)).toBeInTheDocument();
+    expect(within_dialog_button("Delete")).toBeDisabled();
+    expect(stub.requests.some((r) => r.startsWith("DELETE"))).toBe(false);
   });
+
+  it("keeps Delete disabled and says so when the matching records cannot be counted", async () => {
+    let down = false;
+    const middleware: Middleware = (ctx, next) =>
+      down ? Promise.reject(new Error("down")) : next(ctx);
+    renderCrud(
+      <BulkRecords resource="heroes" filters={{ name: { icontains: "c" } }} />,
+      { heroes: fresh(), middleware: [middleware] },
+    );
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: "Select record 1" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Select all matching the filter" }),
+    );
+    down = true;
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await within(screen.getByRole("dialog")).findByText(
+      /could not be read, so nothing is deleted/,
+    );
+    expect(within_dialog_button("Delete")).toBeDisabled();
+  });
+
+  it.each([false, true])(
+    "ignores a count that finishes after the dialog was closed (failing: %s)",
+    async (failing) => {
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let hold = false;
+      const middleware: Middleware = async (ctx, next) => {
+        if (hold) {
+          await held;
+          if (failing) throw new Error("down");
+        }
+        return next(ctx);
+      };
+      renderCrud(
+        <BulkRecords
+          resource="heroes"
+          filters={{ name: { icontains: "c" } }}
+        />,
+        { heroes: fresh(), middleware: [middleware] },
+      );
+      await userEvent.click(
+        await screen.findByRole("checkbox", { name: "Select record 1" }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Select all matching the filter" }),
+      );
+      hold = true;
+      await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      release();
+      // Reopening starts a new count; the closed one must not leak into it.
+      hold = false;
+      await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+      await within(screen.getByRole("dialog")).findByText(
+        /1 record matches the filter/,
+      );
+    },
+  );
 
   it("exports the selected records as CSV", async () => {
     const onExport = vi.fn();

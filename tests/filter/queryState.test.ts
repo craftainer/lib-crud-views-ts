@@ -34,6 +34,8 @@ const ctx = (
   prefix,
   searchField: "name",
   maxPageSize: 99,
+  archiveRestore: true,
+  draftPublish: true,
 });
 
 describe("operands", () => {
@@ -300,6 +302,23 @@ describe("SDK query", () => {
     });
     expect(toCrudQuery(state, false)).not.toHaveProperty("limit");
     expect(toCrudQuery(initialState(c), false)).toEqual({ filters: {} });
+  });
+
+  it("ignores l_archived and l_drafts in a link without the capabilities", () => {
+    const link = "l_archived=1&l_drafts=1";
+    const on = ctx({}, "l_");
+    expect(decodeState(link, on)).toMatchObject({
+      includeArchived: true,
+      includeUnpublished: true,
+    });
+    expect(decodeState(link, { ...on, archiveRestore: false })).toMatchObject({
+      includeArchived: false,
+      includeUnpublished: true,
+    });
+    expect(decodeState(link, { ...on, draftPublish: false })).toMatchObject({
+      includeArchived: true,
+      includeUnpublished: false,
+    });
   });
 
   it("adds the quick search as icontains on its field", () => {

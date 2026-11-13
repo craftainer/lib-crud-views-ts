@@ -371,7 +371,30 @@ describe("inline editing", () => {
     expect(document.querySelector("[aria-busy=true]")).toBeNull();
   });
 
-  it("sends the PATCH without If-Match when an async ifMatch gives undefined", async () => {
+  it("sends the edit without If-Match for a resource without conditional requests", async () => {
+    const user = userEvent.setup();
+    const { stub } = renderCrud(
+      <ResourceList
+        resource="heroes"
+        urlAdapter={memoryUrlAdapter()}
+        gridProps={grid}
+        columns={["id", "name"]}
+        editable
+      />,
+      {
+        manifestPatch: (m) => {
+          for (const r of m.resources)
+            r.capabilities.conditional_requests = false;
+        },
+      },
+      { etags: undefined },
+    );
+    await edit(user, "Captain Ledger", "Captain Index");
+    await screen.findByText("Captain Index", {}, wait);
+    expect(stub.requests.filter((r) => r.startsWith("PATCH"))).toHaveLength(1);
+  });
+
+  it("refuses the edit, sending nothing, when no ETag is known for a conditional resource", async () => {
     const user = userEvent.setup();
     const { stub } = renderCrud(
       <ResourceList
@@ -384,8 +407,89 @@ describe("inline editing", () => {
       />,
     );
     await edit(user, "Captain Ledger", "Captain Index");
+    expect(
+      await screen.findByText(/its ETag is unknown/, {}, wait),
+    ).toBeInTheDocument();
+    expect(stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
+  });
+
+  it("reads the record once for its ETag when the store has none yet", async () => {
+    const user = userEvent.setup();
+    const heroes = heroRows.map((r) => ({ ...r }));
+    let requests: readonly string[] = [];
+    // Stands for the SDK cache: it knows a record only after the view read it.
+    const etags = {
+      cachedEtag: () =>
+        Promise.resolve(
+          requests.some((r) => r.startsWith("GET ") && r.endsWith("?id=1"))
+            ? etagOf(heroes[0] as never)
+            : undefined,
+        ),
+    };
+    const { stub } = renderCrud(
+      <ResourceList
+        resource="heroes"
+        urlAdapter={memoryUrlAdapter()}
+        gridProps={grid}
+        columns={["id", "name"]}
+        editable
+      />,
+      { heroes },
+      { etags },
+    );
+    await screen.findByText("Captain Ledger", {}, wait);
+    requests = stub.requests; // the live request log
+    await edit(user, "Captain Ledger", "Captain Index");
     await screen.findByText("Captain Index", {}, wait);
-    expect(stub.requests.filter((r) => r.startsWith("PATCH"))).toHaveLength(1);
+    expect(
+      stub.requests.filter((r) => r === "GET /api/crud/v1/heroes/v2/json?id=1"),
+    ).toHaveLength(1);
+  });
+
+  it("refuses an edit whose row changed, even when the store holds a newer ETag", async () => {
+    const user = userEvent.setup();
+    const heroes = heroRows.map((r) => ({ ...r }));
+    const { stub } = renderCrud(
+      <ResourceList
+        resource="heroes"
+        urlAdapter={memoryUrlAdapter()}
+        gridProps={grid}
+        columns={["id", "name"]}
+        editable
+      />,
+      { heroes },
+    );
+    await screen.findByText("Captain Ledger", {}, wait);
+    heroes[0]!["name"] = "Changed elsewhere";
+    await edit(user, "Captain Ledger", "Captain Index");
+    expect(
+      await screen.findByText(/changed elsewhere/, {}, wait),
+    ).toBeInTheDocument();
+    expect(stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
+  });
+
+  it("refuses an edit whose row changed on the server before its ETag was read", async () => {
+    const user = userEvent.setup();
+    const heroes = heroRows.map((r) => ({ ...r }));
+    const etags = { cachedEtag: () => Promise.resolve(undefined) };
+    const { stub } = renderCrud(
+      <ResourceList
+        resource="heroes"
+        urlAdapter={memoryUrlAdapter()}
+        gridProps={grid}
+        columns={["id", "name"]}
+        editable
+      />,
+      { heroes },
+      { etags },
+    );
+    await screen.findByText("Captain Ledger", {}, wait);
+    heroes[0]!["name"] = "Changed elsewhere";
+    await edit(user, "Captain Ledger", "Captain Index");
+    expect(
+      await screen.findByText(/changed elsewhere/, {}, wait),
+    ).toBeInTheDocument();
+    expect(stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
   });
 
   it("does not send the edit when an async ifMatch rejects, and says so", async () => {
@@ -417,7 +521,7 @@ describe("inline editing", () => {
         gridProps={grid}
         columns={["id", "name"]}
         editable
-        ifMatch={() => 'W/"stale"'}
+        ifMatch={() => '"stale"'}
       />,
     );
     await edit(user, "Captain Ledger", "Captain Index");

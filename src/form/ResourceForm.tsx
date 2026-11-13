@@ -23,6 +23,8 @@ import {
   FieldInput,
   PageShell,
   ResourceGate,
+  useEtagResolver,
+  type EtagSource,
   type FieldDescriptor,
   type FieldValue,
   type ReadyResource,
@@ -63,14 +65,15 @@ export interface ResourceFormProps {
   /** Pause before an auto-save, in milliseconds. Default 1000. */
   readonly autoSaveDelayMs?: number | undefined;
   /**
-   * The record's current ETag, sent as `If-Match` on every save (edit only,
-   * when the resource has `conditional_requests`). Called before each save,
-   * because a save changes the ETag. Without it no header is sent by the form
-   * (the SDK cache's `autoIfMatch` can still add one).
+   * The ETag of the record as the user saw it, sent as `If-Match` on every
+   * save (edit only). Called before each save, because a save changes the
+   * ETag. Without it the form reads the record right before the save, compares
+   * it with what it loaded or last saved (a difference is a conflict) and uses
+   * the ETag `CrudProvider`'s `etags` (the SDK cache) holds for that read. When
+   * the resource has `conditional_requests` and no ETag is known, the save is
+   * refused with `MissingEtagError`, never sent unconditionally.
    */
-  readonly etag?:
-    | ((id: number) => string | undefined | Promise<string | undefined>)
-    | undefined;
+  readonly etag?: EtagSource | undefined;
   readonly onSaved?: ((record: JsonObject) => void) | undefined;
   /** Heading override. Default "New <recordLabel>" or "Edit <recordLabel> <id>". */
   readonly title?: ReactNode;
@@ -157,8 +160,9 @@ function FormController({
   const { id, layout = "flat", autoSave = false, renderers } = props;
   const mode = id === undefined ? "create" : "edit";
   const presentation = props.presentation ?? "page";
-  const { hooks, resource, capabilities } = ready;
+  const { hooks, resource } = ready;
   const formId = useId();
+  const resolveEtag = useEtagResolver(ready, props.etag);
 
   const record = useQuery({
     ...recordOptions(ready.namespace, ready.queryName, ready.api, id ?? 0),
@@ -270,20 +274,35 @@ function FormController({
         setStatus("saved");
         props.onSaved?.(created);
       } else {
-        const ifMatch =
-          options.overwrite === true ||
-          !capabilities.conditional_requests ||
-          props.etag === undefined
-            ? undefined
-            : await props.etag(id as number);
+        // Edits made while the request runs are not saved yet.
         const seen = edits.current;
+        const overwrite = options.overwrite === true;
+        const ifMatch = await resolveEtag(id as number, {
+          // Without the app's `etag`, read the record right before the save so
+          // the validator is the one of what is compared below: a background
+          // refetch or a save by this form never leaves an older or newer one
+          // in the SDK cache unchecked.
+          fetch: props.etag !== undefined && !overwrite ? "never" : "always",
+          // Overwrite re-reads the record too: use what that cached, not the
+          // loaded-time ETag the app's callback may still return.
+          preferStore: overwrite,
+          // Nobody else may have changed the record (any field) since the form
+          // loaded or saved it; Overwrite replaces such a change on purpose.
+          ...(overwrite
+            ? {}
+            : {
+                verify: (fresh: JsonObject) =>
+                  Object.entries(baseline as Row).every(([name, value]) =>
+                    same(fresh[name] as FieldValue, value),
+                  ),
+              }),
+        });
         const saved = await update.mutateAsync({
           id: id as number,
           patch: patch as JsonObject,
           ...(ifMatch === undefined ? {} : { ifMatch }),
         });
         setBaseline(saved as Row);
-        // Edits made while the request ran are not saved yet.
         setStatus(edits.current === seen ? "saved" : "idle");
         props.onSaved?.(saved);
       }

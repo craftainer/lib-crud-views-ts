@@ -11,6 +11,14 @@
 The trash list (archived records with Restore) is `lifecycle/TrashList` /
 `TrashPanel`, not part of this area.
 
+## Behaviour to know
+
+- On a conditional resource the delete reads the record and sends its ETag when the request is made (at commit for `undo`).
+- `undo` commits the pending delete when the component unmounts inside
+  `undoMs`. That is deliberate: dropping a delete the user was told about would
+  be worse. The risk is a host that remounts the row (a refetch that changes
+  `key`s, a route change): keep the row mounted or use `confirm`.
+
 ## Don't
 
 - Call `DELETE` with a stale `If-Match`: the delete hook takes only the id.
