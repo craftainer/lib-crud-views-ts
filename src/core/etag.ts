@@ -19,6 +19,7 @@ export interface EtagStore {
 /** A per-view lookup of a record's ETag; may be async. `undefined` means none is known. */
 export type EtagSource = (
   id: number,
+  context?: unknown,
 ) => string | undefined | Promise<string | undefined>;
 
 /**
@@ -46,17 +47,28 @@ export class StaleRecordError extends Error {
   }
 }
 
+/** How a lookup may read the record through the SDK to learn its validator. */
+export type EtagFetch = "never" | "missing" | "always";
+
 /** Looks up the `If-Match` value for a write; see {@link useEtagResolver}. */
 export type EtagResolver = (
   id: number,
-  options?: {
-    /** Fetch the record (`GET`) once if no validator is known yet, then look again. */
-    readonly fetchIfMissing?: boolean;
+  options: {
     /**
-     * With `fetchIfMissing`: whether the freshly read record still shows what the
-     * user saw; `false` rejects with {@link StaleRecordError} (nothing is sent).
+     * `"missing"` reads the record (`GET`) once if no validator is known yet;
+     * `"always"` reads it before every lookup, so the validator is the one of
+     * what `verify` just checked.
+     */
+    readonly fetch: EtagFetch;
+    /**
+     * With a read: whether the freshly read record still shows what the user
+     * saw; `false` rejects with {@link StaleRecordError} (nothing is sent).
      */
     readonly verify?: (fresh: JsonObject) => boolean;
+    /** Passed to the view's `source` as its second argument (for example the row). */
+    readonly context?: unknown;
+    /** Ask the `etags` store before the view's `source` (after the record was re-read). */
+    readonly preferStore?: boolean;
   },
 ) => Promise<string | undefined>;
 
@@ -65,10 +77,11 @@ export type EtagResolver = (
  * the view's own `source`, then the provider's `etags` store (the SDK cache,
  * which keeps the last validator of every record it read). Resolves
  * `undefined` only when the resource does not declare `conditional_requests`;
- * when it does and no ETag is known it rejects with {@link MissingEtagError}
- * (fail closed). With `fetchIfMissing` the record is read once through the SDK
- * first, which makes the cache remember its validator; `verify` then checks
- * that the record still shows what the user saw.
+ * when it does and no ETag source exists, or none knows the record, it rejects
+ * with {@link MissingEtagError} (fail closed, without reading the record when
+ * there is nowhere to look). The `fetch` option reads the record through the
+ * SDK first, which makes the cache remember its validator; `verify` then
+ * checks that the record still shows what the user saw.
  */
 export function useEtagResolver(
   ready: ReadyResource,
@@ -83,13 +96,21 @@ export function useEtagResolver(
   return useCallback(
     async (id, options) => {
       if (!conditional) return undefined;
+      if (source === undefined && etags === undefined) {
+        throw new MissingEtagError(name, id);
+      }
+      const fromStore = async (): Promise<string | undefined> =>
+        etags?.cachedEtag(name, id, await client.scope(), apiVersion);
       const lookup = async (): Promise<string | undefined> => {
-        if (source !== undefined) return source(id);
-        if (etags === undefined) return undefined;
-        return etags.cachedEtag(name, id, await client.scope(), apiVersion);
+        const first = options.preferStore === true ? fromStore : undefined;
+        const tag = await first?.();
+        if (tag !== undefined) return tag;
+        if (source !== undefined) return source(id, options.context);
+        return fromStore();
       };
-      let tag = await lookup();
-      if (tag === undefined && options?.fetchIfMissing === true) {
+      const { fetch } = options;
+      let tag = fetch === "always" ? undefined : await lookup();
+      if (tag === undefined && fetch !== "never") {
         const fresh = (await handle.get(id)) as JsonObject;
         if (options.verify?.(fresh) === false) {
           throw new StaleRecordError(name, id);

@@ -132,7 +132,10 @@ function RevisionListVariant({
         title="Restore this revision?"
         confirmLabel="Restore"
         busy={update.isPending || resolving}
-        onClose={() => setTarget(null)}
+        // Not while the ETag is looked up: a cancel must not be followed by a restore.
+        onClose={() => {
+          if (!resolving) setTarget(null);
+        }}
         onConfirm={() => {
           // The dialog is only open with a target, and its button is disabled
           // (busy) while the ETag is looked up, so this runs once per restore.
@@ -141,7 +144,7 @@ function RevisionListVariant({
           // Restore overwrites the record on purpose, so a validator that is
           // missing is read from the server once; the PATCH is still
           // conditional on it.
-          void resolveEtag(id, { fetchIfMissing: true }).then(
+          void resolveEtag(id, { fetch: "missing" }).then(
             (ifMatch) => {
               setResolving(false);
               update.mutate(

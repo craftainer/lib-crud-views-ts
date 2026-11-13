@@ -446,6 +446,28 @@ describe("inline editing", () => {
     ).toHaveLength(1);
   });
 
+  it("refuses an edit whose row changed, even when the store holds a newer ETag", async () => {
+    const user = userEvent.setup();
+    const heroes = heroRows.map((r) => ({ ...r }));
+    const { stub } = renderCrud(
+      <ResourceList
+        resource="heroes"
+        urlAdapter={memoryUrlAdapter()}
+        gridProps={grid}
+        columns={["id", "name"]}
+        editable
+      />,
+      { heroes },
+    );
+    await screen.findByText("Captain Ledger", {}, wait);
+    heroes[0]!["name"] = "Changed elsewhere";
+    await edit(user, "Captain Ledger", "Captain Index");
+    expect(
+      await screen.findByText(/changed elsewhere/, {}, wait),
+    ).toBeInTheDocument();
+    expect(stub.requests.some((r) => r.startsWith("PATCH"))).toBe(false);
+  });
+
   it("refuses an edit whose row changed on the server before its ETag was read", async () => {
     const user = userEvent.setup();
     const heroes = heroRows.map((r) => ({ ...r }));

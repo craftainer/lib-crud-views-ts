@@ -144,7 +144,7 @@ export function BulkToolbar({
 
   /** Freezes the filters for the confirmation and counts what they match (at most `max + 1` rows are read). */
   const askDelete = (): void => {
-    const run = ++countRun.current;
+    const token = ++countRun.current;
     const server = serverFilters(ready, selection, filters);
     setFrozen(server);
     setMatching(selection.allMatching ? null : count);
@@ -161,10 +161,10 @@ export function BulkToolbar({
           if (found > max) break;
         }
       } catch {
-        if (run === countRun.current) setMatching("unknown");
+        if (token === countRun.current) setMatching("unknown");
         return;
       }
-      if (run === countRun.current) setMatching(found > max ? "many" : found);
+      if (token === countRun.current) setMatching(found > max ? "many" : found);
     })();
   };
 

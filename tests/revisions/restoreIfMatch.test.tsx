@@ -78,7 +78,7 @@ describe("restoring a revision with the SDK cache as etags", () => {
 
   it("refuses to restore, sending nothing, when the provider has no etags", async () => {
     const { middleware, sent } = setup();
-    renderCrud(
+    const { stub } = renderCrud(
       ui,
       { heroes: lifecycleHeroes(), middleware },
       { etags: undefined },
@@ -88,6 +88,10 @@ describe("restoring a revision with the SDK cache as etags", () => {
       /ETag is unknown/,
     );
     expect(sent).toHaveLength(0);
+    // Nowhere to look: the record is not even read.
+    expect(stub.requests.filter((r) => r.startsWith("GET")).join()).not.toMatch(
+      /json\?id=1/,
+    );
   });
 
   it("shows the error alert on a 412 and does not restore", async () => {
@@ -132,6 +136,58 @@ describe("restoring a revision with the SDK cache as etags", () => {
     renderCrud(ui, { heroes: lifecycleHeroes(), middleware }, { etags });
     await restore();
     expect(await screen.findByRole("alert")).toHaveTextContent("lookup failed");
+    expect(sent).toHaveLength(0);
+  });
+
+  it("cannot be cancelled while the ETag is looked up", async () => {
+    const { middleware, sent, cache } = setup();
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let hold = false;
+    const gate: Middleware = async (ctx, next) => {
+      if (hold && ctx.request.method === "GET") await held;
+      return next(ctx);
+    };
+    renderCrud(
+      ui,
+      { heroes: lifecycleHeroes(), middleware: [gate, ...middleware] },
+      { etags: cache },
+    );
+    await screen.findByRole("button", { name: "Restore revision 101" });
+    hold = true;
+    await userEvent.click(
+      screen.getByRole("button", { name: "Restore revision 101" }),
+    );
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Restore",
+      }),
+    );
+    // The close request is ignored while the lookup runs.
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    release();
+    await waitFor(() => expect(sent).toHaveLength(1));
+  });
+
+  it("closes on Cancel before the restore is confirmed, sending nothing", async () => {
+    const { middleware, sent, cache } = setup();
+    renderCrud(ui, { heroes: lifecycleHeroes(), middleware }, { etags: cache });
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Restore revision 101" }),
+    );
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(sent).toHaveLength(0);
   });
 });

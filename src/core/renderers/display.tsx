@@ -31,13 +31,16 @@ function asText(value: FieldValue): string {
 const MAILBOX =
   /^[^\s@?&#%,;:"<>()[\]\\]+@[^\s@?&#%,;:"<>()[\]\\]+\.[^\s@?&#%,;:"<>()[\]\\]+$/;
 
+const isMailbox = (text: string): boolean =>
+  MAILBOX.test(text) && !text.includes("..") && !/@\.|\.$/.test(text);
+
 export function StringDisplay({
   value,
   field,
 }: DisplayRendererProps): ReactElement {
   if (isEmpty(value)) return <Empty />;
   const text = asText(value);
-  if (field.format === "email" && MAILBOX.test(text)) {
+  if (field.format === "email" && isMailbox(text)) {
     return <Link href={`mailto:${text}`}>{text}</Link>;
   }
   if (field.format === "uri" && /^https?:\/\//i.test(text)) {

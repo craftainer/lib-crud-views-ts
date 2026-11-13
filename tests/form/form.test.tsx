@@ -208,7 +208,7 @@ describe("edit", () => {
     await user.type(screen.getByLabelText(/Name/), "!");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(etagFn).toHaveBeenCalledWith(1);
+    expect(etagFn.mock.calls[0]?.[0]).toBe(1);
     expect(heroes[0]).toMatchObject({
       name: "Captain Ledger!",
       power_level: 72,
@@ -357,12 +357,11 @@ describe("edit", () => {
     ).toHaveLength(1);
   });
 
-  it("overwrites on request after a 412, with the ETag of the re-read record", async () => {
+  it("overwrites on request after a 412, with the ETag of the re-read record, not the loaded-time one", async () => {
     const heroes = fresh();
     const stale = etagOf(heroes[0] as JsonObject);
-    let current = stale;
     const view = renderCrud(
-      <ResourceForm name="heroes" id={1} etag={() => current} />,
+      <ResourceForm name="heroes" id={1} etag={() => stale} />,
       { heroes },
     );
     const user = userEvent.setup();
@@ -370,8 +369,7 @@ describe("edit", () => {
     touch(heroes[0] as JsonObject);
     await user.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByRole("button", { name: "Overwrite" });
-    // The app's callback reads what the re-read of the record cached.
-    current = etagOf(heroes[0] as JsonObject);
+    // The callback still returns the loaded-time ETag: Overwrite uses the re-read one.
     await user.click(screen.getByRole("button", { name: "Overwrite" }));
     await screen.findByText("Saved");
     expect(
@@ -507,6 +505,11 @@ describe("edit", () => {
       await screen.findByText(/This record was changed since you opened it/),
     ).toBeInTheDocument();
     expect(requests(view, "PATCH")).toHaveLength(1);
+    // Overwrite replaces the other writer's change on purpose, also after a save of this form.
+    await user.click(screen.getByRole("button", { name: "Overwrite" }));
+    await screen.findByText("Saved");
+    expect(requests(view, "PATCH")).toHaveLength(2);
+    expect(heroes[0]?.["name"]).toBe("Captain Ledger!?");
   });
 
   it("shows the error and sends nothing when Overwrite cannot re-read the record", async () => {

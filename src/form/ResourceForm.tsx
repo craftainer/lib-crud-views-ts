@@ -285,13 +285,22 @@ function FormController({
           const fresh = await record.refetch();
           if (fresh.isError) throw fresh.error;
         }
+        const overwrite = options.overwrite === true;
         const ifMatch = await resolveEtag(id as number, {
-          fetchIfMissing: savedByForm.current,
-          // Only trust the new validator if nobody else changed the record since this form's save.
-          verify: (fresh) =>
-            editable.every((f) =>
-              same(fresh[f.name] as FieldValue, baseline?.[f.name]),
-            ),
+          fetch: savedByForm.current && !overwrite ? "missing" : "never",
+          // The record was just re-read for Overwrite: use what that cached,
+          // not the loaded-time ETag the app's callback may still return.
+          preferStore: overwrite,
+          // Only trust the new validator if nobody else changed the record since
+          // this form's save; Overwrite replaces such a change on purpose.
+          ...(overwrite
+            ? {}
+            : {
+                verify: (fresh: JsonObject) =>
+                  editable.every((f) =>
+                    same(fresh[f.name] as FieldValue, baseline?.[f.name]),
+                  ),
+              }),
         });
         const saved = await update.mutateAsync({
           id: id as number,

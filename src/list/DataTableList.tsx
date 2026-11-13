@@ -10,13 +10,7 @@ import {
   type GridSortModel,
 } from "@mui/x-data-grid";
 import { PreconditionFailed } from "@craftainer/crud-sdk";
-import {
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  type ReactElement,
-} from "react";
+import { useCallback, useMemo, useState, type ReactElement } from "react";
 import {
   FieldDisplay,
   FieldInput,
@@ -131,10 +125,12 @@ export function DataTableList({
   const { page, pageSize, sort } = state.state;
   const list = ready.hooks.useList(state.pagedQuery);
   const update = ready.hooks.useUpdate();
-  const editing = useRef<Row | undefined>(undefined);
   const rowSource = useCallback(
-    (): string | undefined | Promise<string | undefined> =>
-      ifMatch?.(editing.current as Row),
+    (
+      _id: number,
+      row?: unknown,
+    ): string | undefined | Promise<string | undefined> =>
+      ifMatch?.(row as Row),
     [ifMatch],
   );
   const resolveEtag = useEtagResolver(
@@ -241,10 +237,12 @@ export function DataTableList({
     if (Object.keys(patch).length === 0) return previous;
     setSaving((n) => n + 1);
     try {
-      editing.current = previous;
       const id = previous[idField] as number;
       const tag = await resolveEtag(id, {
-        fetchIfMissing: ifMatch === undefined,
+        // Without the app's `ifMatch`, read the record first so the validator
+        // is the one of the value that is compared below, never an older cached one.
+        fetch: ifMatch === undefined ? "always" : "never",
+        context: previous,
         // The validator is only trusted if the edited fields are still what the row showed.
         verify: (fresh) =>
           Object.keys(patch).every((k) => same(fresh[k], previous[k])),
