@@ -7,6 +7,7 @@ import {
   type JsonObject,
   type Middleware,
 } from "@craftainer/crud-sdk";
+import type { Cache } from "@craftainer/crud-sdk/cache";
 import manifest from "./manifest.json" with { type: "json" };
 import { deleteRoutes } from "./routes/delete.ts";
 import { detailRoutes } from "./routes/detail.ts";
@@ -104,6 +105,8 @@ export interface StubOptions {
   readonly id?: string;
   /** SDK middleware for the client (a cache with `autoIfMatch`, a request spy). */
   readonly middleware?: readonly Middleware[];
+  /** An SDK cache for the client (SDK 0.10+: `createClient({ cache })`, scope "shared"). */
+  readonly cache?: Cache;
   /** A bearer token: the client's caller scope is a hash of it (else `"anon"`). */
   readonly token?: string;
   /** A token provider that throws, so `client.namespace()` rejects. */
@@ -233,6 +236,9 @@ export function createStubClient(options: StubOptions = {}): Stub {
       baseUrl: "https://stub.test",
       fetch: stubFetch as typeof fetch,
       ...(options.id === undefined ? {} : { id: options.id }),
+      ...(options.cache === undefined
+        ? {}
+        : { cache: options.cache, cacheScope: "shared" }),
       ...(options.middleware === undefined
         ? {}
         : { middleware: options.middleware }),

@@ -1,5 +1,10 @@
 import type { JsonObject } from "@craftainer/crud-sdk";
-import { useCallback } from "react";
+import {
+  listOptions,
+  recordOptions,
+  type CrudQuery,
+} from "@craftainer/crud-sdk/tanstack";
+import { useCallback, useMemo } from "react";
 import { useCrud } from "./context.ts";
 import type { ReadyResource } from "./useResource.ts";
 
@@ -126,7 +131,11 @@ export function useEtagResolver(
         return strong(await fromStore());
       };
       if (options.fetch === "always") {
-        const fresh = (await handle.get(id)) as JsonObject;
+        // "no-cache": never answered by the SDK cache, whatever its max_age or
+        // stale-while-revalidate, so a changed record is seen (and conflicts).
+        const fresh = (await handle.get(id, {
+          cache: "no-cache",
+        })) as JsonObject;
         if (options.verify?.(fresh) === false) {
           throw new StaleRecordError(name, id);
         }
@@ -136,5 +145,38 @@ export function useEtagResolver(
       return tag;
     },
     [conditional, apiVersion, source, etags, client, name, handle],
+  );
+}
+
+/**
+ * Reloads a list or a record into its query, bypassing the SDK cache's
+ * `hit`/`stale` answers (`cache: "no-cache"`): used after a conflict, where
+ * the cached copy is the one that just proved stale.
+ */
+export function useForcedReload(ready: ReadyResource): {
+  readonly list: (query: CrudQuery | undefined) => Promise<void>;
+  readonly record: (id: number) => Promise<unknown>;
+} {
+  const { queryClient } = useCrud();
+  const { namespace, queryName, api } = ready;
+  return useMemo(
+    () => ({
+      // A failed reload shows through the query's own error state.
+      list: async (query) => {
+        await queryClient
+          .fetchQuery(
+            listOptions(namespace, queryName, api, query, {
+              cache: "no-cache",
+            }),
+          )
+          .catch(() => undefined);
+      },
+      // Rejects with the fetch error, for the caller to show.
+      record: (id) =>
+        queryClient.fetchQuery(
+          recordOptions(namespace, queryName, api, id, { cache: "no-cache" }),
+        ),
+    }),
+    [queryClient, namespace, queryName, api],
   );
 }
