@@ -29,7 +29,7 @@ function setup() {
       sent.push(ctx.request.headers.get("if-match"));
     return next(ctx);
   };
-  return { middleware: [cache.middleware, spy], sent, cache };
+  return { middleware: [spy], sent, cache };
 }
 
 const ui = (
@@ -56,7 +56,7 @@ describe("restoring a revision with the SDK cache as etags", () => {
   it("sends If-Match from the cached ETag of that record", async () => {
     const { middleware, sent, cache } = setup();
     const heroes = lifecycleHeroes();
-    renderCrud(ui, { heroes, middleware }, { etags: cache });
+    renderCrud(ui, { heroes, middleware, cache }, { etags: cache });
     await userEvent.click(
       await screen.findByRole("button", { name: "load record" }),
     );
@@ -69,7 +69,7 @@ describe("restoring a revision with the SDK cache as etags", () => {
   it("reads the record first, then sends its ETag", async () => {
     const { middleware, sent, cache } = setup();
     const heroes = lifecycleHeroes();
-    renderCrud(ui, { heroes, middleware }, { etags: cache });
+    renderCrud(ui, { heroes, middleware, cache }, { etags: cache });
     const current = etagOf(heroes[0] as never);
     await restore();
     await waitFor(() => expect(sent).toHaveLength(1));
@@ -97,7 +97,7 @@ describe("restoring a revision with the SDK cache as etags", () => {
   it("restores with the current ETag even when the cached one is stale", async () => {
     const { middleware, sent, cache } = setup();
     const heroes = lifecycleHeroes();
-    renderCrud(ui, { heroes, middleware }, { etags: cache });
+    renderCrud(ui, { heroes, middleware, cache }, { etags: cache });
     await userEvent.click(
       await screen.findByRole("button", { name: "load record" }),
     );
@@ -123,7 +123,7 @@ describe("restoring a revision with the SDK cache as etags", () => {
     };
     renderCrud(
       ui,
-      { heroes, middleware: [race, ...middleware] },
+      { heroes, middleware: [race, ...middleware], cache },
       { etags: cache },
     );
     await restore();
@@ -174,7 +174,7 @@ describe("restoring a revision with the SDK cache as etags", () => {
     };
     renderCrud(
       ui,
-      { heroes: lifecycleHeroes(), middleware: [gate, ...middleware] },
+      { heroes: lifecycleHeroes(), middleware: [gate, ...middleware], cache },
       { etags: cache },
     );
     await screen.findByRole("button", { name: "Restore revision 101" });
@@ -200,7 +200,11 @@ describe("restoring a revision with the SDK cache as etags", () => {
 
   it("closes on Cancel before the restore is confirmed, sending nothing", async () => {
     const { middleware, sent, cache } = setup();
-    renderCrud(ui, { heroes: lifecycleHeroes(), middleware }, { etags: cache });
+    renderCrud(
+      ui,
+      { heroes: lifecycleHeroes(), middleware, cache },
+      { etags: cache },
+    );
     await userEvent.click(
       await screen.findByRole("button", { name: "Restore revision 101" }),
     );

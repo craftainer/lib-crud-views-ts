@@ -3,7 +3,12 @@ export { CrudProvider } from "./provider.tsx";
 export type { CrudProviderProps } from "./provider.tsx";
 export { useCrud } from "./context.ts";
 export type { CrudContextValue } from "./context.ts";
-export { MissingEtagError, StaleRecordError, useEtagResolver } from "./etag.ts";
+export {
+  MissingEtagError,
+  StaleRecordError,
+  useEtagResolver,
+  useForcedReload,
+} from "./etag.ts";
 export { useDeleteRecord } from "./useDeleteRecord.ts";
 export type { EtagFetch, EtagResolver, EtagSource, EtagStore } from "./etag.ts";
 export { useResource } from "./useResource.ts";

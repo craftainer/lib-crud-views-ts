@@ -24,6 +24,7 @@ import {
   PageShell,
   ResourceGate,
   useEtagResolver,
+  useForcedReload,
   type EtagSource,
   type FieldDescriptor,
   type FieldValue,
@@ -163,6 +164,7 @@ function FormController({
   const { hooks, resource } = ready;
   const formId = useId();
   const resolveEtag = useEtagResolver(ready, props.etag);
+  const forced = useForcedReload(ready);
 
   const record = useQuery({
     ...recordOptions(ready.namespace, ready.queryName, ready.api, id ?? 0),
@@ -325,11 +327,12 @@ function FormController({
   };
 
   const reload = async (): Promise<void> => {
-    const result = await record.refetch();
-    if (result.isError) {
-      setMessage(`The record could not be reloaded: ${result.error.message}`);
-    } else {
-      reset(result.data as Row);
+    try {
+      reset((await forced.record(id as number)) as Row);
+    } catch (error) {
+      setMessage(
+        `The record could not be reloaded: ${(error as Error).message}`,
+      );
     }
   };
 
